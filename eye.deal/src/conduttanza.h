@@ -86,70 +86,55 @@ void loopConduttanza() {
 }
 
 // ------------------------------------------------------
+// FUNZIONE AGGIORNATA PER I 60 SECONDI
 void updateSCL(unsigned long elapsed) {
-  // Misuriamo SCL solo durante la finestra dell'esperimento
-  if (elapsed > EXPERIMENT_DURATION) {
-    return;
-  }
-  // Ignora i primi 5 secondi (artefatti da contatto iniziale)
-  if (elapsed < SCL_START_DELAY) {
-    return;
-  }
-  // Campionamento a intervallo fisso (ca. 20 Hz)
   if (elapsed - lastSCLSampleElapsed < SCL_SAMPLE_INTERVAL) {
-    return; // non è ancora passato abbastanza tempo dall'ultima lettura
+    return; 
   }
   lastSCLSampleElapsed = elapsed;
 
-  // Tempo "relativo" all'inizio della finestra valida SCL (5 s)
-  unsigned long sclElapsed = elapsed - SCL_START_DELAY;
+  // LETTURA SENSORI (ALWAYS ON)
+  // Questo garantisce che l'AUDIO funzioni sempre e sia reattivo per tutti i 60s.
+  int raw0 = analogRead(SCL_INPUT0);  
+  int raw1 = analogRead(SCL_INPUT1);  
 
-  // Legge la tensione dal circuito SCL per entrambe le persone
-  int raw0 = analogRead(SCL_INPUT0);  // persona 0
-  int raw1 = analogRead(SCL_INPUT1);  // persona 1
-
-  // *** HO AGGIUNTO SOLO QUESTE DUE RIGHE PER ESPORTARE IL DATO ***
+  // Esportazione per il main (e quindi per Pure Data)
   exportRaw0 = raw0;
   exportRaw1 = raw1;
-  // ***************************************************************
 
-  // ----------------- Canale 0 (persona 0) -----------------
+
+  // Da qui in giù è tutto codice che serve solo per il calcolo finale
+  // Se il tempo è scaduto, ci fermiamo qui, ma l'audio sopra continua
+  // STOP dopo 45s (i dati successivi non influiscono sulla media finale)
+  if (elapsed > EXPERIMENT_DURATION) {
+    return;
+  }
+  // IGNORA i primi 5s (artefatti di contatto) per la media
+  if (elapsed < SCL_START_DELAY) {
+    return;
+  }
+
+  unsigned long sclElapsed = elapsed - SCL_START_DELAY;
+
+  
   bool valid0 = true;
-
-  // 1 fuori range assoluto?
-  if (raw0 < SCL_MIN_VALID || raw0 > SCL_MAX_VALID) {
-    valid0 = false;
-  }
-
-  // 2 salto troppo grande rispetto al precedente valore "buono"?
-  if (lastRaw0 != -1 && abs(raw0 - lastRaw0) > SCL_MAX_STEP) {
-    valid0 = false;
-  }
+  if (raw0 < SCL_MIN_VALID || raw0 > SCL_MAX_VALID) valid0 = false;
+  if (lastRaw0 != -1 && abs(raw0 - lastRaw0) > SCL_MAX_STEP) valid0 = false;
 
   if (valid0) {
-    // Prima metà valida (5–25 s) se sclElapsed <= 20000 ms
     if (sclElapsed <= SCL_HALF_DURATION) {
       firstHalfSumSCL[0]   += raw0;
       firstHalfCountSCL[0] += 1;
     } else {
-      // Seconda metà valida (25–45 s)
       secondHalfSumSCL[0]   += raw0;
       secondHalfCountSCL[0] += 1;
     }
-    // aggiorna ultimo valore "buono"
     lastRaw0 = raw0;
   }
 
-  // ----------------- Canale 1 (persona 1) -----------------
   bool valid1 = true;
-
-  if (raw1 < SCL_MIN_VALID || raw1 > SCL_MAX_VALID) {
-    valid1 = false;
-  }
-
-  if (lastRaw1 != -1 && abs(raw1 - lastRaw1) > SCL_MAX_STEP) {
-    valid1 = false;
-  }
+  if (raw1 < SCL_MIN_VALID || raw1 > SCL_MAX_VALID) valid1 = false;
+  if (lastRaw1 != -1 && abs(raw1 - lastRaw1) > SCL_MAX_STEP) valid1 = false;
 
   if (valid1) {
     if (sclElapsed <= SCL_HALF_DURATION) {
