@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/Volumes/Install macOS Sequoia/ALUA-PYTHON/.venv"
+VIRTUAL_ENV="/Users/camilla/Desktop/III anno I semestre /LAB sintesi/ALUA-PYTHON/.venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
