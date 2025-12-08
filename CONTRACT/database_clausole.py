@@ -156,18 +156,18 @@ CLAUSOLE_DB = {
     # --------------------------------------------------------
     "LAVORO": {
         1: [
-            "1. Comunicazione limitata esclusivamente all'orario d'ufficio.",
-            "2. Divieto di aggiunta sui social media personali.",
-            "3. Pausa pranzo separata e indipendente.",
-            "4. Utilizzo esclusivo della mail aziendale (no WhatsApp).",
-            "5. Divieto di contatto fisico (incluso abbracci festivi)."
+            "1. Comunicazione limitata esclusivamente all'orario d'ufficio e per fini professionali.",
+            "2. Divieto di aggiunta sui social media personali o scambio di contatti privati.",
+            "3. Pausa pranzo separata e indipendente, senza obbligo di interazione.",
+            "4. Utilizzo esclusivo della mail aziendale per comunicazioni interne ed esterne.",
+            "5. Divieto di contatto fisico non strettamente necessario (es. strette di mano formali)."
         ],
         2: [
-            "6. Partecipazione a cene aziendali (max 2 l'anno).",
-            "7. Tolleranza di conversazioni informali alla macchinetta del caffè.",
-            "8. Scambio numeri di cellulare per sole emergenze.",
-            "9. Copertura reciproca su piccoli ritardi (max 15 min).",
-            "10. Condivisione pareri su colleghi terzi (Gossip moderato)."
+            "6. Partecipazione a eventi aziendali (cene, meeting) con frequenza massima di 2 all'anno.",
+            "7. Tolleranza di conversazioni informali alla macchinetta del caffè o in aree comuni.",
+            "8. Scambio di numeri di cellulare per sole emergenze lavorative, con consenso esplicito.",
+            "9. Copertura reciproca su piccoli ritardi o assenze giustificate (max 15 min/giorno).",
+            "10. Condivisione di pareri su colleghi terzi, purché costruttivi e non lesivi della reputazione."
         ],
         3: [
             "11. Reperibilità estesa (serale/weekend).",
