@@ -1,120 +1,201 @@
 from fpdf import FPDF
-import datetime
 import os
+from datetime import datetime
 import random
+import urllib.parse # Serve per creare il link web pulito
 
-# Importiamo i blocchi grafici
-# Assicurati che tutti questi file esistano in contract_blocks/
-from contract_blocks import lissajous
-from contract_blocks import circles
-from contract_blocks import qrcode_generator
-from contract_blocks import database_clausole
-from contract_blocks import conductance_graph # Il nuovo modulo grafico
+# --- IMPORT DEI BLOCCHI ---
+try:
+    # NOTA: Ho rimosso 'circles' come richiesto
+    from contract_blocks import lissajous
+    from contract_blocks import qrcode_generator
+    from contract_blocks import relationship_viz
+    print("[CONTRACT] ✅ Blocchi grafici importati (Circles rimosso).")
+except ImportError as e:
+    print(f"[CONTRACT] ❌ ERRORE IMPORT: {e}")
+    exit()
+
+def genera_testo_clausole(tipi_attivi):
+    if not tipi_attivi:
+        return "Clausola Default: Relazione indefinita. Si accetta l'ambiguità."
+    
+    testo = "LE PARTI CONCORDANO: "
+    mapping = {
+        "PROFESSIONALE": "Collaborazione formale, efficienza prioritaria.",
+        "AMICIZIA": "Supporto reciproco, tempo non strutturato.",
+        "ROMANTICA": "Tensione attrattiva e vulnerabilità emotiva.",
+        "FAMILIARE": "Legame di appartenenza e obblighi impliciti.",
+        "CONOSCENZA": "Esplorazione preliminare.",
+        "INTIMO": "Condivisione di spazi riservati."
+    }
+    for t in tipi_attivi:
+        testo += mapping.get(t, "") + " "
+    return testo
+
+def costruisci_url_dati(dati):
+    """
+    Crea l'URL completo con tutti i parametri per la Web App.
+    """
+    base_url = "https://alua-gamma.vercel.app/"
+    
+    # 1. Recupero dati base
+    raw_p0 = dati.get('raw_p0', {'buttons': [0]*6, 'slider': 0})
+    raw_p1 = dati.get('raw_p1', {'buttons': [0]*6, 'slider': 0})
+    giudizio = dati.get('giudizio_negativo', {})
+    
+    # 2. Conversione Bottoni in stringa compatta (es. "0,2,5")
+    # Enumerate restituisce (indice, valore). Se valore è 1, teniamo l'indice.
+    btns0_list = [str(i) for i, v in enumerate(raw_p0.get('buttons', [])) if v == 1]
+    btns1_list = [str(i) for i, v in enumerate(raw_p1.get('buttons', [])) if v == 1]
+    
+    # 3. Parametri URL
+    params = {
+        'gsr0': dati.get('scl0', 0),
+        'gsr1': dati.get('scl1', 0),
+        'sl0': raw_p0.get('slider', 0),
+        'sl1': raw_p1.get('slider', 0),
+        'comp': dati.get('compatibilita', 50),
+        'btn0': ",".join(btns0_list),  # Es: "0,3"
+        'btn1': ",".join(btns1_list),  # Es: "1"
+        'bad': giudizio.get('id_colpevole', -1), # 0=P0, 1=P1, -1=Nessuno
+        'fascia': dati.get('fascia', 1),
+        'id': datetime.now().strftime("%Y%m%d%H%M")
+    }
+    
+    # Codifica sicura dei parametri nell'URL
+    full_url = base_url + "?" + urllib.parse.urlencode(params)
+    return full_url
 
 def genera_pdf_contratto_A4(dati):
-    """
-    Genera un file PDF basato sui dati biometrici ricevuti.
-    Restituisce il percorso del file generato.
-    """
+    print("\n[CONTRACT] 📄 Inizio assemblaggio PDF...")
     
-    # 1. Estrazione Dati
-    gsr_val = dati.get('gsr', 0)
-    compatibilita_val = dati.get('compatibilita', 50)
-    fascia = dati.get('fascia', 1)
-    storico_dati = dati.get('storico', []) # Recuperiamo lo storico
-
-    # Timestamp per nome file univoco
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    pdf_filename = f"ALUA_Contract_{timestamp}.pdf"
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    output_dir = os.path.join(base_dir, 'output_contracts')
+    assets_dir = os.path.join(base_dir, 'assets')
     
-    # Percorsi (Assoluti o relativi)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    output_folder = os.path.join(base_dir, "..", "output_contracts") # Salva fuori dalla cartella code
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-        
-    full_output_path = os.path.join(output_folder, pdf_filename)
-    template_path = os.path.join(base_dir, "layout_contratto.png") # Assicurati che esista!
+    template_path = os.path.join(assets_dir, 'layout_contratto.png')
+    font_path = os.path.join(assets_dir, 'BergenMono-Regular.ttf')
 
-    # 2. Setup PDF (A4 Verticale)
+    if not os.path.exists(template_path):
+        print(f"[ERROR] Manca il file: {template_path}")
+        return None
+    
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Setup PDF
     pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.set_auto_page_break(False)
     pdf.add_page()
     
-    # Caricamento Template Sfondo
-    if os.path.exists(template_path):
-        pdf.image(template_path, x=0, y=0, w=210, h=297)
+    # 1. Sfondo
+    pdf.image(template_path, x=0, y=0, w=210, h=297)
+    
+    # 2. Font
+    if os.path.exists(font_path):
+        pdf.add_font('BergenMono', '', font_path)
+        pdf.set_font('BergenMono', '', 12)
     else:
-        print("[WARNING] Template layout_contratto.png non trovato!")
+        pdf.set_font('Courier', '', 12)
 
-    # Setup Font (Courier è standard e monospaziato, ottimo per stile "codice/legale")
-    pdf.set_font("Courier", size=10)
-
-    # --- GENERAZIONE ELEMENTI GRAFICI TEMPORANEI ---
+    # Dati Estesi
+    storico = dati.get('storico', [])
+    compat = dati.get('compatibilita', 50)
+    raw_p0 = dati.get('raw_p0', {})
+    raw_p1 = dati.get('raw_p1', {})
     
-    # A. Lissajous (Emblema)
-    path_liss = "temp_liss.png"
-    lissajous.genera_lissajous(gsr_val, compatibilita_val, path_liss)
-    # Posiziona immagine (es. in alto a destra) - Coordinate X, Y, W, H
-    pdf.image(path_liss, x=140, y=30, w=40, h=40)
+    files_temp = []
 
-    # B. Cerchi (Visualizzazione Percentuale)
-    path_circles = "temp_circles.png"
-    circles.genera_cerchio_organico(compatibilita_val, path_circles)
-    # Posiziona cerchio (es. centro pagina sinistra)
-    pdf.image(path_circles, x=20, y=100, w=50, h=50)
+    # --- A. LISSAJOUS (Emblema) ---
+    path_liss = os.path.join(base_dir, "temp_liss.png")
+    lissajous.generate_lissajous(storico, path_liss)
+    if os.path.exists(path_liss):
+        # Manteniamo la posizione originale
+        pdf.image(path_liss, x=22, y=42, w=55, h=55) 
+        files_temp.append(path_liss)
 
-    # C. QR Code
-    path_qr = "temp_qr.png"
-    url_web = f"https://alua-gamma.vercel.app/report?id={timestamp}&gsr={gsr_val}"
-    qrcode_generator.genera_qr(url_web, path_qr)
-    pdf.image(path_qr, x=160, y=240, w=30, h=30)
+    # --- B. CERCHI (RIMOSSO) ---
+    # Invece dei cerchi, stampiamo solo la percentuale come testo semplice
+    # nella posizione dove prima c'erano i cerchi (in alto a destra)
+    pdf.set_font_size(24)
+    pdf.set_xy(138, 55) # Coordinate approssimative dei vecchi cerchi
+    pdf.cell(55, 20, txt=f"{compat}%", align='C') 
+
+    # --- C. QR CODE (Con Link Completo) ---
+    path_qr = os.path.join(base_dir, "temp_qr.png")
     
-    # D. NUOVO: Grafico Conduttanza (Tempo)
-    path_graph = "temp_conductance.png" # Usiamo PNG per compatibilità FPDF
-    # Se lo storico è vuoto (es. test), creiamo dati fittizi
-    if not storico_dati:
-        storico_dati = [(random.randint(200,800), 0) for _ in range(20)]
+    # Generazione Link Dinamico
+    link_completo = costruisci_url_dati(dati)
+    print(f"[CONTRACT] 🔗 Link generato: {link_completo}")
+    
+    qrcode_generator.generate_qr(link_completo, path_qr)
+    
+    if os.path.exists(path_qr):
+        pdf.image(path_qr, x=155, y=230, w=35, h=35)
+        files_temp.append(path_qr)
+
+    # --- D. VISUALIZZAZIONE PEZZO ---
+    path_p0 = os.path.join(base_dir, "temp_p0.png")
+    path_p1 = os.path.join(base_dir, "temp_p1.png")
+    
+    relationship_viz.genera_pezzo_singolo(raw_p0, path_p0)
+    relationship_viz.genera_pezzo_singolo(raw_p1, path_p1)
+    
+    if os.path.exists(path_p0):
+        pdf.image(path_p0, x=18, y=115, w=82) # Sinistra
+        files_temp.append(path_p0)
+    if os.path.exists(path_p1):
+        pdf.image(path_p1, x=112, y=115, w=82) # Destra
+        files_temp.append(path_p1)
+
+    # --- E. TESTI ---
+    pdf.set_font_size(10)
+    contract_id = datetime.now().strftime("%Y%m%d-%H%M")
+    
+    pdf.set_xy(140, 25)
+    pdf.cell(60, 10, f"DATA: {datetime.now().strftime('%d.%m.%Y')}", ln=1, align='R')
+    pdf.set_xy(140, 30)
+    pdf.cell(60, 10, f"ID: {contract_id}", ln=1, align='R')
+
+    # Clausole
+    testo = genera_testo_clausole(dati.get('tipi_selezionati', []))
+    pdf.set_xy(22, 220)
+    pdf.multi_cell(125, 5, txt=testo, align='L')
+    
+    # Anello Debole (Giudizio) stampato in rosso
+    giudizio = dati.get('giudizio_negativo', {})
+    if giudizio and giudizio.get('id_colpevole', -1) != -1:
+        pdf.set_font_size(9)
+        pdf.set_text_color(200, 0, 0) # Rosso
+        pdf.set_xy(22, 250)
+        pdf.cell(0, 10, f"NOTA CRITICA: Instabilità in {giudizio['nome']} ({giudizio['motivo']})")
+        pdf.set_text_color(0, 0, 0) # Reset nero
+
+    # Output
+    out_file = os.path.join(output_dir, f"Contract_{contract_id}.pdf")
+    try:
+        pdf.output(out_file)
+        print(f"[CONTRACT] ✅ PDF Creato: {out_file}")
+    except Exception as e:
+        print(f"[CONTRACT] ❌ Errore salvataggio: {e}")
+        return None
+
+    # Pulizia
+    for f in files_temp:
+        try: os.remove(f)
+        except: pass
         
-    conductance_graph.genera_grafico_conduttanza(storico_dati, path_graph)
-    # Posiziona il grafico (es. in basso a sinistra, largo)
-    # Calibra x, y in base al tuo layout grafico di sfondo
-    pdf.image(path_graph, x=25, y=180, w=100, h=50) 
+    return out_file
 
-    # --- INSERIMENTO TESTI ---
-    
-    # Protocollo
-    pdf.set_xy(25, 45)
-    pdf.cell(0, 10, txt=f"PROT: {timestamp}-{fascia}", ln=1)
-
-    # Percentuale Compatibilità (Sovrapposta ai cerchi o vicina)
-    pdf.set_font("Courier", 'B', size=14)
-    pdf.set_xy(35, 122) # Centrato sul cerchio organico
-    pdf.cell(20, 10, txt=f"{compatibilita_val}%", align='C')
-
-    # Recupero Clausole dal Database
-    pdf.set_font("Courier", size=9)
-    clausole = database_clausole.get_clausole(fascia, "INTENSO") # O logica dinamica
-    
-    # Stampa Clausole (Colonna destra o centrale)
-    y_text = 160
-    pdf.set_xy(110, y_text)
-    pdf.multi_cell(80, 5, txt="TERMINI DELL'ACCORDO BIOMETRICO:\n\n" + "\n".join(f"- {c}" for c in clausole))
-
-    # Costo/Valore
-    costo = fascia * 150 + (compatibilita_val * 2)
-    pdf.set_font("Courier", 'B', size=12)
-    pdf.set_xy(140, 230)
-    pdf.cell(0, 10, txt=f"VALORE STIMATO: EUR {costo},00")
-
-    # 3. Output e Pulizia
-    pdf.output(full_output_path)
-    
-    # Rimuoviamo i file temporanei delle immagini
-    for f in [path_liss, path_circles, path_qr, path_graph]:
-        if os.path.exists(f):
-            try:
-                os.remove(f)
-            except:
-                pass # Ignora errori di rimozione
-                
-    return full_output_path
+if __name__ == "__main__":
+    # Test Rapido con Dati Finti (Include Giudizio Negativo e Tasti)
+    dati_test = {
+        'storico': [(100, 50), (200, 60)], 
+        'compatibilita': 88, 
+        'scl0': 450, 'scl1': 800,
+        'raw_p0': {'buttons':[1,0,0,0,1,0], 'slider':80}, # Bottoni 0 e 4 attivi
+        'raw_p1': {'buttons':[0,0,1,0,0,0], 'slider':20}, # Bottone 2 attivo
+        'tipi_selezionati': ['AMICIZIA'],
+        'giudizio_negativo': {'id_colpevole': 1, 'nome': 'PERSONA 1', 'motivo': 'Stress Alto'},
+        'fascia': 2
+    }
+    genera_pdf_contratto_A4(dati_test)

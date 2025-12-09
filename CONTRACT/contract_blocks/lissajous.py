@@ -1,31 +1,43 @@
 import math
 from PIL import Image, ImageDraw
 
-def genera_emblema(valore_A, valore_B, compatibilita):
+def generate_lissajous(data_history, output_path):
     """
+    Genera la figura di Lissajous basata sulla media dei dati storici.
     Input:
-    - valore_A, valore_B: Int (0-1023) dai sensori GSR
-    - compatibilita: Int (0-100)
-    Output:
-    - Oggetto Image (Pillow) pronto per il PDF
+    - data_history: lista di tuple [(gsr, compat), ...] o simile
+    - output_path: dove salvare il file PNG
     """
+    # 1. Calcolo valori medi dallo storico per stabilità del disegno
+    if not data_history:
+        val_gsr = 500
+        val_compat = 50
+    else:
+        # Estraiamo GSR (indice 0) e Compatibilità (indice 1) se disponibili
+        try:
+            val_gsr = sum([x[0] for x in data_history]) / len(data_history)
+            val_compat = sum([x[1] for x in data_history]) / len(data_history)
+        except:
+            val_gsr = 500
+            val_compat = 50
+
+    # 2. Configurazione Immagine
     SIZE = 600
+    # Sfondo bianco
     img = Image.new('RGB', (SIZE, SIZE), (255, 255, 255))
     draw = ImageDraw.Draw(img)
     
-    # 1. Mappatura Dati -> Parametri Matematici
-    # Più alto è lo stress, più la figura è "densa" (frequenza alta)
-    freq_x = 1 + int((valore_A / 1024) * 8) 
-    freq_y = 1 + int((valore_B / 1024) * 8)
+    # 3. Parametri Matematici
+    freq_x = 1 + int((val_gsr / 1000) * 9) 
+    freq_y = freq_x + 1 
     
-    # La compatibilità definisce l'armonia (lo sfasamento)
-    delta = (compatibilita / 100) * math.pi / 2
+    delta = (val_compat / 100) * math.pi
     
-    # 2. Disegno
+    # 4. Disegno Curva
     cx, cy = SIZE // 2, SIZE // 2
-    raggio = (SIZE // 2) - 20
+    raggio = (SIZE // 2) - 40
     punti = []
-    steps = 2000 # Alta risoluzione
+    steps = 3000 
     
     for t in range(steps + 1):
         angle = (t / steps) * 2 * math.pi
@@ -35,7 +47,6 @@ def genera_emblema(valore_A, valore_B, compatibilita):
         
     draw.line(punti, fill=(0, 0, 0), width=3)
     
-    # (Opzionale) Box nero attorno
-    draw.rectangle([0, 0, SIZE-1, SIZE-1], outline=(0,0,0), width=5)
-    
-    return img
+    # 5. Salvataggio
+    img.save(output_path)
+    return output_path
