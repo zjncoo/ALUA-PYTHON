@@ -78,3 +78,63 @@ def calcola_percentuale_compatibilita(sensor_data):
     print(f"[LOGIC] >> COMPATIBILITÀ TOTALE: {percentuale}%")
     
     return percentuale
+
+def determina_anello_debole(sensor_data):
+    """
+    Analizza chi dei due utenti sta abbassando il potenziale della relazione.
+    Restituisce un dizionario con i dettagli del 'colpevole'.
+    """
+    # Recupero dati grezzi
+    scl0 = sensor_data.get("scl0", 0)
+    scl1 = sensor_data.get("scl1", 0)
+    slider0 = sensor_data.get("slider0", 0)
+    slider1 = sensor_data.get("slider1", 0)
+
+    # --- CALCOLO SCORE INDIVIDUALE (0.0 a 1.0) ---
+    # Logica: 
+    # - Lo Slider (Volontà) pesa per il 70% del punteggio individuale.
+    # - La Calma (Inverso dello Stress/GSR) pesa per il 30%.
+    
+    # Normalizzazione Slider (più alto è meglio)
+    val_slider0 = slider0 / 1023.0
+    val_slider1 = slider1 / 1023.0
+    
+    # Normalizzazione GSR (più basso è meglio, quindi invertiamo)
+    # Clampiamo a MAX_GSR_DIFF per evitare valori negativi
+    val_calm0 = 1.0 - min(scl0 / MAX_GSR_DIFF, 1.0)
+    val_calm1 = 1.0 - min(scl1 / MAX_GSR_DIFF, 1.0)
+    
+    # Calcolo Punteggio "Impegno"
+    score_p0 = (val_slider0 * 0.70) + (val_calm0 * 0.30)
+    score_p1 = (val_slider1 * 0.70) + (val_calm1 * 0.30)
+    
+    # --- VERDETTO ---
+    colpevole = "NESSUNO"
+    motivo = "Equilibrio perfetto"
+    
+    # Soglia di tolleranza (se sono vicini, nessuno è il colpevole)
+    soglia = 0.10 
+    
+    if abs(score_p0 - score_p1) < soglia:
+        id_colpevole = -1 # Pareggio
+    elif score_p0 < score_p1:
+        id_colpevole = 0
+        colpevole = "PERSONA 0 (SX)"
+        # Analisi rapida del perché
+        if val_slider0 < val_slider1: motivo = "Scarso interesse (Slider Basso)"
+        else: motivo = "Troppa instabilità (Stress Alto)"
+    else:
+        id_colpevole = 1
+        colpevole = "PERSONA 1 (DX)"
+        if val_slider1 < val_slider0: motivo = "Scarso interesse (Slider Basso)"
+        else: motivo = "Troppa instabilità (Stress Alto)"
+
+    print(f"[JUDGE] Score P0: {score_p0:.2f} vs Score P1: {score_p1:.2f} -> COLPEVOLE: {colpevole}")
+    
+    return {
+        "id_colpevole": id_colpevole, # 0, 1, o -1
+        "nome": colpevole,
+        "motivo": motivo,
+        "score_p0": int(score_p0 * 100),
+        "score_p1": int(score_p1 * 100)
+    }
