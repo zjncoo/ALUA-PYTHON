@@ -26,8 +26,12 @@ void setupContatto() {
 }
 
 long letturaContatto() {
-    long lettura = sensoreDestro.capacitiveSensor(30); //30 campionamenti rapidissimi --> fare la media. Valore compromesso tra precisione del dato e velocità di lettura
+    long lettura = sensoreDestro.capacitiveSensor(30);
     
+    // Stampa il valore di capacità in tempo reale
+    Serial.print("CAPACITA': ");
+    Serial.println(lettura);
+        
     // filtro soglia
     if (lettura > SOGLIA_STRETTA) {
         return lettura;
