@@ -95,8 +95,8 @@ void updateSCL(unsigned long elapsed) {
 
   // LETTURA SENSORI (ALWAYS ON)
   // Questo garantisce che l'AUDIO funzioni sempre e sia reattivo per tutti i 60s.
-  int raw0 = analogRead(SCL_INPUT0);  
-  int raw1 = analogRead(SCL_INPUT1);  
+  int raw0 = 1023 - analogRead(SCL_INPUT0);  
+  int raw1 = 1023 - analogRead(SCL_INPUT1);  
 
   // Esportazione per il main (e quindi per Pure Data)
   exportRaw0 = raw0;

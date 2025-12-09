@@ -15,7 +15,7 @@ PIN 4 ------------------------------------> (Niente altro, muore qui)*/
 // Più alta è la resistenza, più il sensore diventa sensibile alla vicinanza/tocco.
 
 // soglia di attivazione = contatto
-const long SOGLIA_STRETTA = 2000; //valore da valutare in base al monitor seriale
+//const long SOGLIA_STRETTA = 2000; //valore da valutare in base al monitor seriale
 
 void setupContatto() {
     // disabilita autocalibrazione per evitare che il valore vada a 0 autoricalibrandosi
@@ -27,15 +27,5 @@ void setupContatto() {
 
 long letturaContatto() {
     long lettura = sensoreDestro.capacitiveSensor(30);
-    
-    // Stampa il valore di capacità in tempo reale
-    Serial.print("CAPACITA': ");
-    Serial.println(lettura);
-        
-    // filtro soglia
-    if (lettura > SOGLIA_STRETTA) {
         return lettura;
-    } else {
-        return 0; 
-    }
 }
