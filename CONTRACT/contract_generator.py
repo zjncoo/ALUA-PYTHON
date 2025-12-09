@@ -1,112 +1,120 @@
-import os
 from fpdf import FPDF
-from datetime import datetime
-import qrcode
+import datetime
+import os
+import random
 
-# --- IMPORTIAMO I MODULI ESISTENTI ---
-# Assicurati che questi file esistano nella cartella contract_blocks
-from contract_blocks import lissajous, circles
-from database_clausole import CLAUSOLE_DB, TITOLI_FASCE
+# Importiamo i blocchi grafici
+# Assicurati che tutti questi file esistano in contract_blocks/
+from contract_blocks import lissajous
+from contract_blocks import circles
+from contract_blocks import qrcode_generator
+from contract_blocks import database_clausole
+from contract_blocks import conductance_graph # Il nuovo modulo grafico
 
 def genera_pdf_contratto_A4(dati):
     """
-    Genera il contratto usando 'layout_contratto.png' come sfondo.
-    Dati attesi: {'gsr': int, 'compatibilita': int, 'fascia': int, 'tipi_selezionati': list}
+    Genera un file PDF basato sui dati biometrici ricevuti.
+    Restituisce il percorso del file generato.
     """
-    print(f">>> 📑 Generazione Contratto su Template... Dati: {dati}")
     
-    # 1. SETUP PDF A4
+    # 1. Estrazione Dati
+    gsr_val = dati.get('gsr', 0)
+    compatibilita_val = dati.get('compatibilita', 50)
+    fascia = dati.get('fascia', 1)
+    storico_dati = dati.get('storico', []) # Recuperiamo lo storico
+
+    # Timestamp per nome file univoco
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    pdf_filename = f"ALUA_Contract_{timestamp}.pdf"
+    
+    # Percorsi (Assoluti o relativi)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    output_folder = os.path.join(base_dir, "..", "output_contracts") # Salva fuori dalla cartella code
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        
+    full_output_path = os.path.join(output_folder, pdf_filename)
+    template_path = os.path.join(base_dir, "layout_contratto.png") # Assicurati che esista!
+
+    # 2. Setup PDF (A4 Verticale)
     pdf = FPDF(orientation='P', unit='mm', format='A4')
-    pdf.set_auto_page_break(auto=False) # Disabilitiamo break automatico per gestire noi il layout
     pdf.add_page()
     
-    # --- SFONDO (IL TUO TEMPLATE) ---
-    # Carica l'immagine a piena pagina (A4 = 210x297 mm)
-    # Assicurati di aver convertito il PDF in PNG e messo in assets
-    template_path = "CONTRACT/assets/layout_contratto.png"
-    
+    # Caricamento Template Sfondo
     if os.path.exists(template_path):
         pdf.image(template_path, x=0, y=0, w=210, h=297)
     else:
-        print(f"⚠️ ATTENZIONE: Manca il file {template_path}. Il PDF sarà bianco.")
+        print("[WARNING] Template layout_contratto.png non trovato!")
 
-    # --- IMPOSTAZIONE FONT ---
-    # Usiamo un font monospaziato per l'effetto "macchina da scrivere"
-    pdf.set_font("Courier", 'B', 12)
-    pdf.set_text_color(0, 0, 0) # Nero
+    # Setup Font (Courier è standard e monospaziato, ottimo per stile "codice/legale")
+    pdf.set_font("Courier", size=10)
 
-    # --------------------------------------------------------
-    # COMPILAZIONE CAMPI (Coordinate X, Y da calibrare)
-    # --------------------------------------------------------
+    # --- GENERAZIONE ELEMENTI GRAFICI TEMPORANEI ---
+    
+    # A. Lissajous (Emblema)
+    path_liss = "temp_liss.png"
+    lissajous.genera_lissajous(gsr_val, compatibilita_val, path_liss)
+    # Posiziona immagine (es. in alto a destra) - Coordinate X, Y, W, H
+    pdf.image(path_liss, x=140, y=30, w=40, h=40)
 
-    # 1. NUMERO PRATICA (In alto a destra nel tuo template)
-    protocollo = f"{datetime.now().strftime('%Y%m%d')}-{dati['gsr']}"
-    pdf.set_xy(140, 35) # <--- Modifica X, Y se serve
-    pdf.cell(50, 10, protocollo, align='L')
+    # B. Cerchi (Visualizzazione Percentuale)
+    path_circles = "temp_circles.png"
+    circles.genera_cerchio_organico(compatibilita_val, path_circles)
+    # Posiziona cerchio (es. centro pagina sinistra)
+    pdf.image(path_circles, x=20, y=100, w=50, h=50)
 
-    # 2. PERCENTUALE DI AFFINITÀ (Grande, al centro)
-    # Nel template c'è scritto "35%". Noi ci scriviamo sopra il valore reale.
-    pdf.set_font("Courier", 'B', 24)
-    pdf.set_xy(88, 85) # Posizione approssimativa al centro del diagramma a barre
-    pdf.cell(40, 10, f"{dati['compatibilita']}%", align='C')
+    # C. QR Code
+    path_qr = "temp_qr.png"
+    url_web = f"https://alua-gamma.vercel.app/report?id={timestamp}&gsr={gsr_val}"
+    qrcode_generator.genera_qr(url_web, path_qr)
+    pdf.image(path_qr, x=160, y=240, w=30, h=30)
+    
+    # D. NUOVO: Grafico Conduttanza (Tempo)
+    path_graph = "temp_conductance.png" # Usiamo PNG per compatibilità FPDF
+    # Se lo storico è vuoto (es. test), creiamo dati fittizi
+    if not storico_dati:
+        storico_dati = [(random.randint(200,800), 0) for _ in range(20)]
+        
+    conductance_graph.genera_grafico_conduttanza(storico_dati, path_graph)
+    # Posiziona il grafico (es. in basso a sinistra, largo)
+    # Calibra x, y in base al tuo layout grafico di sfondo
+    pdf.image(path_graph, x=25, y=180, w=100, h=50) 
 
-    # 3. GRAFICI GENERATI (Lissajous e Cerchi)
-    # Generiamo le immagini temporanee come facevi prima
+    # --- INSERIMENTO TESTI ---
     
-    # -- Grafico Cerchi (Affinità) --
-    img_cerchi = circles.genera_grafico_percentuale(dati['compatibilita'])
-    img_cerchi.save("temp_cerchi.png")
-    # Lo posizioniamo sopra l'area "LA VOSTRA PERCENTUALE" o dove preferisci
-    # pdf.image("temp_cerchi.png", x=25, y=70, w=40) 
+    # Protocollo
+    pdf.set_xy(25, 45)
+    pdf.cell(0, 10, txt=f"PROT: {timestamp}-{fascia}", ln=1)
 
-    # -- Emblema Lissajous (Forma della relazione) --
-    # Nel template c'è il riquadro "SIMBOLO DELLA COPPIA"
-    val_B_simulato = dati['gsr'] + (100 if dati['compatibilita'] < 50 else 0)
-    img_emblema = lissajous.genera_emblema(dati['gsr'], val_B_simulato, dati['compatibilita'])
-    img_emblema.save("temp_lissajous.png")
-    
-    # Posizionato nel riquadro "SIMBOLO DELLA COPPIA" (in basso a sx nel template)
-    pdf.image("temp_lissajous.png", x=30, y=160, w=50)
+    # Percentuale Compatibilità (Sovrapposta ai cerchi o vicina)
+    pdf.set_font("Courier", 'B', size=14)
+    pdf.set_xy(35, 122) # Centrato sul cerchio organico
+    pdf.cell(20, 10, txt=f"{compatibilita_val}%", align='C')
 
-    # 4. FASCIA DI RISCHIO E PREZZO
-    # Il template ha una tabella. Possiamo scrivere una "X" o cerchiare la fascia giusta.
-    fascia = dati['fascia'] # 1, 2, 3 o 4
+    # Recupero Clausole dal Database
+    pdf.set_font("Courier", size=9)
+    clausole = database_clausole.get_clausole(fascia, "INTENSO") # O logica dinamica
     
-    # Coordinate Y approssimative per le righe della tabella fasce nel tuo PDF
-    # Fascia I: y=210, Fascia II: y=220, Fascia III: y=230, Fascia IV: y=240
-    y_base_tabella = 205
-    step_y = 8 # Distanza tra le righe
-    
-    # Mettiamo un segnale (es. "<< SELEZIONATA") accanto alla riga giusta
-    y_fascia = y_base_tabella + ((fascia - 1) * step_y)
-    
-    pdf.set_font("Courier", 'B', 10)
-    pdf.set_text_color(255, 0, 0) # Rosso per evidenziare
-    pdf.set_xy(180, y_fascia) 
-    pdf.cell(20, 5, "<---", align='L') 
-    
-    # Scriviamo anche il prezzo dinamico in fondo
-    prezzi = {1: "250 EUR", 2: "500 EUR", 3: "750 EUR", 4: "1.000 EUR"}
-    prezzo_finale = prezzi.get(fascia, "N.D.")
-    
-    pdf.set_xy(150, 260) # Zona "Totale" o simile in basso
-    pdf.set_font("Courier", 'B', 16)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(40, 10, prezzo_finale, align='R')
+    # Stampa Clausole (Colonna destra o centrale)
+    y_text = 160
+    pdf.set_xy(110, y_text)
+    pdf.multi_cell(80, 5, txt="TERMINI DELL'ACCORDO BIOMETRICO:\n\n" + "\n".join(f"- {c}" for c in clausole))
 
-    # 5. QR CODE (Per verifica o link mostra)
-    # Lo mettiamo in un angolo libero (es. in basso a destra)
-    qr = qrcode.make(f"https://alua.it/verify?pratica={protocollo}")
-    qr.save("temp_qr.png")
-    pdf.image("temp_qr.png", x=170, y=260, w=25)
+    # Costo/Valore
+    costo = fascia * 150 + (compatibilita_val * 2)
+    pdf.set_font("Courier", 'B', size=12)
+    pdf.set_xy(140, 230)
+    pdf.cell(0, 10, txt=f"VALORE STIMATO: EUR {costo},00")
 
-    # --- SALVATAGGIO ---
-    nome_file_output = os.path.abspath(f"ALUA_Contratto_{datetime.now().strftime('%H%M%S')}.pdf")
-    pdf.output(nome_file_output)
+    # 3. Output e Pulizia
+    pdf.output(full_output_path)
     
-    # Pulizia
-    for f in ["temp_cerchi.png", "temp_lissajous.png", "temp_qr.png"]:
-        try: os.remove(f)
-        except: pass
-    
-    return nome_file_output
+    # Rimuoviamo i file temporanei delle immagini
+    for f in [path_liss, path_circles, path_qr, path_graph]:
+        if os.path.exists(f):
+            try:
+                os.remove(f)
+            except:
+                pass # Ignora errori di rimozione
+                
+    return full_output_path
