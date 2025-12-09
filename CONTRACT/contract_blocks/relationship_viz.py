@@ -1,117 +1,103 @@
 from PIL import Image, ImageDraw, ImageFont
 import os
 
-# Tipi di relazione
-TIPI_RELAZIONE = [
-    "FAMIGLIA",
-    "COPPIA",
-    "AMICIZIA",
-    "LAVORO",
-    "ALTRO"
+# ==============================================================================
+# ⚠️ CONFIGURAZIONE GEOMETRICA UNICA (Layout Standard)
+# ==============================================================================
+# Questo layout viene applicato a ENTRAMBE le persone.
+# Ipotizziamo: Pulsanti a SINISTRA, Slider a DESTRA.
+
+FILL_COLOR = (0, 0, 0, 255)       # Nero Pieno
+TEXT_COLOR = (0, 0, 0, 255)       # Testo Nero
+FONT_SIZE = 36 
+BTN_RADIUS = 30  # <--- Raggio dei cerchi neri dei bottoni
+
+# 1. COORDINATE SLIDER (Rettangolo Interno Vuoto)
+# Format: (Left_X, Top_Y, Right_X, Bottom_Y)
+# Esempio: Se lo slider è a destra nell'immagine, la X sarà alta (es. 600)
+SLIDER_BOX = (600, 280, 640, 750) 
+
+# 2. COORDINATE CENTRI BOTTONI (Colonna a Sinistra)
+# Lista di 6 coordinate (X, Y) dall'alto in basso.
+# Esempio: Se sono a sinistra, la X sarà bassa (es. 100)
+BTN_CENTERS = [
+    (100, 310),  # Bottone 0 (Alto)
+    (100, 390),  # Bottone 1
+    (100, 470),  # Bottone 2
+    (100, 550),  # Bottone 3
+    (100, 630),  # Bottone 4
+    (100, 710),  # Bottone 5 (Basso)
 ]
+# ==============================================================================
 
-def get_font(size):
+def genera_pezzo_singolo(dati_persona, path_output):
+    """
+    Genera un file immagine per una singola persona usando il layout standard.
+    dati_persona: dizionario {'buttons': [0,1...], 'slider': 0-100}
+    """
+    # 1. Setup Percorsi
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    template_path = os.path.join(base_dir, 'CONTRACT', 'assets', 'pezzo.png') 
+    font_path = os.path.join(base_dir, 'CONTRACT', 'assets', 'BergenMono-Regular.ttf')
+
+    # 2. Caricamento Risorse
     try:
-        base_path = os.path.dirname(os.path.dirname(__file__))
-        font_path = os.path.join(base_path, 'assets', 'Courier.ttf')
-        return ImageFont.truetype(font_path, size)
-    except:
-        return ImageFont.load_default()
+        img = Image.open(template_path).convert("RGBA") 
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.truetype(font_path, FONT_SIZE)
+        except OSError:
+            font = ImageFont.load_default()
+    except FileNotFoundError:
+        print(f"[ALUA] Errore: Template non trovato in {template_path}")
+        return None
 
-def disegna_selettore_circolare(draw, x, y, label, attivo=False):
-    """
-    Disegna un cerchio. Se attivo = pieno nero. Se inattivo = solo bordo.
-    """
-    RAGGIO = 25 # Dimensione del cerchio
-    BLACK = (0, 0, 0)
+    # 3. DISEGNO CERCHI (BOTTONI)
+    # Prendiamo i 6 stati dei bottoni
+    buttons = dati_persona.get('buttons', [0]*6)
     
-    # 1. Cerchio Esterno (Bordo)
-    # bounding box: [x0, y0, x1, y1]
-    draw.ellipse([x, y, x + RAGGIO*2, y + RAGGIO*2], outline=BLACK, width=3)
-    
-    # 2. Riempimento (Solo se attivo)
-    if attivo:
-        # Disegna un cerchio leggermente più piccolo dentro, pieno
-        GAP = 6
-        draw.ellipse(
-            [x + GAP, y + GAP, x + RAGGIO*2 - GAP, y + RAGGIO*2 - GAP], 
-            fill=BLACK
-        )
+    for i, stato in enumerate(buttons):
+        # Disegna solo se il bottone è premuto (1) e se esiste la coordinata
+        if stato == 1 and i < len(BTN_CENTERS):
+            cx, cy = BTN_CENTERS[i]
+            # Calcola il rettangolo (bounding box) del cerchio
+            bbox = (cx - BTN_RADIUS, cy - BTN_RADIUS, cx + BTN_RADIUS, cy + BTN_RADIUS)
+            draw.ellipse(bbox, fill=FILL_COLOR)
 
-    # 3. Etichetta sotto il cerchio
-    font = get_font(14)
-    text_w = len(label) * 8 # Stima larghezza
-    # Centriamo il testo sotto il cerchio
-    text_x = x + RAGGIO - (text_w / 2)
-    text_y = y + RAGGIO*2 + 15
+    # 4. DISEGNO SLIDER
+    slider_val = dati_persona.get('slider', 0)
+    lx, ty, rx, by = SLIDER_BOX
     
-    draw.text((text_x, text_y), label, font=font, fill=BLACK)
+    full_height = by - ty
+    fill_height = int(full_height * (slider_val / 100.0))
+    fill_top = by - fill_height
 
-def disegna_fader(draw, x, y, valore):
-    """Disegna lo slider lineare"""
-    W, H = 500, 60
-    BLACK = (0, 0, 0)
-    
-    # Linea guida
-    track_y = y + H/2
-    draw.line([x, track_y, x+W, track_y], fill=BLACK, width=4)
-    draw.rectangle([x-5, track_y-3, x+W+5, track_y+3], outline=BLACK, width=1)
-    
-    # Cursore
-    val_safe = max(0, min(100, valore))
-    handle_x = x + int((val_safe / 100) * W)
-    
-    handle_w = 20
-    handle_h = 50
-    handle_top = track_y - handle_h/2
-    
-    # Disegniamo il cappuccio
-    draw.rectangle(
-        [handle_x - handle_w/2, handle_top, handle_x + handle_w/2, handle_top + handle_h],
-        fill=BLACK, outline=BLACK
-    )
-    
-    # Scala graduata
-    for i in range(0, 110, 10):
-        tick_x = x + int((i/100) * W)
-        draw.line([tick_x, track_y+10, tick_x, track_y+20], fill=BLACK, width=1)
-        if i % 50 == 0:
-            draw.text((tick_x-10, track_y+25), str(i), font=get_font(10), fill=BLACK)
+    # Disegna barra nera dal basso
+    if slider_val > 0:
+        draw.rectangle([(lx, fill_top), (rx, by)], fill=FILL_COLOR)
 
-def genera_blocco_selezione(tipo_selezionato, intensita_valore):
-    """
-    Crea l'immagine della sezione input (Cerchi + Slider).
-    """
-    W, H = 600, 350
-    img = Image.new('RGB', (W, H), (255, 255, 255))
-    draw = ImageDraw.Draw(img)
-    
-    font_title = get_font(20)
-    BLACK = (0, 0, 0)
+    # Disegna percentuale sopra
+    text = f"{slider_val}%"
+    text_w, text_h = draw.textsize(text, font=font) if hasattr(draw, 'textsize') else (40, 20)
+    # Centra il testo sopra la colonna dello slider
+    text_x = lx + (rx - lx - text_w) // 2
+    text_y = ty - text_h - 10 
+    draw.text((text_x, text_y), text, font=font, fill=TEXT_COLOR)
 
-    # --- SEZIONE A: TIPOLOGIA (Cerchi) ---
-    draw.text((20, 20), "INPUT A: SELEZIONE TIPOLOGIA", font=font_title, fill=BLACK)
-    
-    start_x = 40
-    gap = 110 
-    
-    for i, label in enumerate(TIPI_RELAZIONE):
-        # Verifica se è selezionato
-        is_active = (tipo_selezionato and label[:4] in tipo_selezionato.upper())
-        
-        disegna_selettore_circolare(draw, start_x + (i*gap), 60, label, attivo=is_active)
+    # 5. Salvataggio
+    img.save(path_output)
+    return path_output
 
-    # --- SEZIONE B: INTENSITÀ (Slider) ---
-    y_slider = 200
-    draw.text((20, y_slider), "INPUT B: LIVELLO INTENSITA'", font=font_title, fill=BLACK)
+# --- TEST ---
+if __name__ == "__main__":
+    # Dati finti
+    p0_data = {'buttons': [1,0,0,1,0,0], 'slider': 80}
+    p1_data = {'buttons': [0,1,0,0,1,0], 'slider': 25}
     
-    disegna_fader(draw, 50, y_slider + 40, intensita_valore)
+    print("Genero Test P0...")
+    genera_pezzo_singolo(p0_data, "test_p0_layout.png")
     
-    # Valore numerico grande
-    font_big = get_font(30)
-    draw.text((560, y_slider + 50), f"{intensita_valore}", font=font_big, fill=BLACK)
-
-    # Cornice esterna
-    draw.rectangle([5, 5, W-5, H-5], outline=BLACK, width=5)
-
-    return img
+    print("Genero Test P1...")
+    genera_pezzo_singolo(p1_data, "test_p1_layout.png")
+    
+    print("Fatto. I due file devono avere lo STESSO layout grafico.")
