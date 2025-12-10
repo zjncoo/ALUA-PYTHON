@@ -23,7 +23,7 @@ from pythonosc import udp_client
 # -------------------------
 # Configurazione (modifica qui)
 # -------------------------
-SERIAL_PORT = "/dev/cu.usbmodem11401"   # cambia se necessario
+SERIAL_PORT = "/dev/cu.usbmodem11301"   # cambia se necessario
 BAUD_RATE = 115200
 SERIAL_TIMEOUT = 1.0
 
