@@ -23,7 +23,7 @@ except ImportError as e:
 
 # --- CONFIGURAZIONE ---
 # ⚠️ VERIFICA LA PORTA SERIALE
-SERIAL_PORT = '/dev/cu.usbmodem11301' 
+SERIAL_PORT = '/dev/cu.usbmodem21301' 
 BAUD_RATE = 115200 
 
 # Configurazione OSC per Pure Data
@@ -78,62 +78,70 @@ class AluaSystem:
 
     def process_line(self, line):
         try:
-            # Decodifica la riga da Arduino
-            # FORMATO ATTESO: SCL0 SCL1 CONTATTO SLIDER0 SLIDER1 B0..B5 B6..B11
+            # DEBUG: riga grezza ricevuta da Arduino
+            print("[ALUA][RAW]", line)
+
             parts = line.decode('utf-8', errors='ignore').strip().split()
 
+            # Formato da main.ino:
+            # SCL0 SCL1 CONTATTO SLIDER0 SLIDER1 B0 B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 B11
             if len(parts) >= 17:
-                # 1. Parsing dei valori grezzi
-                scl0 = int(parts[0])
-                scl1 = int(parts[1])
-                contatto = int(parts[2])
-                slider0 = int(parts[3])
-                slider1 = int(parts[4])
-                
-                # I bottoni sono gli ultimi 12 valori (0 o 1)
-                btns = [int(x) for x in parts[5:17]]
-                
-                # 2. Aggiornamento Sensor Data
-                self.sensor_data["scl0"] = scl0
-                self.sensor_data["scl1"] = scl1
-                self.sensor_data["scl_max"] = max(scl0, scl1) # Usiamo il massimo per il grafico generale
-                
-                self.sensor_data["contatto"] = contatto
-                
-                self.sensor_data["slider0"] = slider0
-                self.sensor_data["slider1"] = slider1
-                self.sensor_data["slider_avg"] = int((slider0 + slider1) / 2)
-                
-                self.sensor_data["buttons0"] = btns[0:6]
-                self.sensor_data["buttons1"] = btns[6:12]
+                # --- PARSING RAW (UNO PER UNO, CON INDICI ESPLICITI) ---
+                scl0_raw      = int(parts[0])   # persona 0
+                scl1_raw      = int(parts[1])   # persona 1
+                contatto_raw  = int(parts[2])
+                slider0_raw   = int(parts[3])   # persona 0
+                slider1_raw   = int(parts[4])   # persona 1
 
-                # 3. Interpretazione Logica (Traduzione Bottoni in Parole)
-                tipi_correnti = []
-                # Controlliamo i bottoni di entrambe le persone
-                for i in range(6):
-                    # Se il bottone i è premuto da Persona 0 O Persona 1
-                    if self.sensor_data["buttons0"][i] == 1 or self.sensor_data["buttons1"][i] == 1:
-                        tipi_correnti.append(TIPI_RELAZIONE[i])
-                
-                self.sensor_data["tipi_attivi"] = tipi_correnti
+                # 12 bottoni in ordine
+                buttons_raw = [int(x) for x in parts[5:17]]  # B0..B11
+                buttons0_raw = buttons_raw[0:6]              # B0..B5 -> persona 0
+                buttons1_raw = buttons_raw[6:12]             # B6..B11 -> persona 1
 
-                # 4. Aggiornamento Storico (per il grafico nel PDF)
-                # Salviamo una tupla (ConduttanzaMax, CompatibilitàStimata)
-                compatibilita_temp = self.map_range(self.sensor_data["slider_avg"], 0, 1023, 0, 100)
-                self.scl_history.append((self.sensor_data["scl_max"], compatibilita_temp))
+                # --- AGGREGAZIONI (per il contratto) ---
+                scl_combined    = max(scl0_raw, scl1_raw)
+                slider_combined = int((slider0_raw + slider1_raw) / 2)
+
+                # --- SALVA NEI SENSOR DATA ---
+                self.sensor_data["scl0"]     = scl0_raw
+                self.sensor_data["scl1"]     = scl1_raw
+                self.sensor_data["scl"]      = scl_combined
+
+                self.sensor_data["contatto"] = contatto_raw
+
+                self.sensor_data["slider0"]  = slider0_raw
+                self.sensor_data["slider1"]  = slider1_raw
+                self.sensor_data["slider"]   = slider_combined
+
+                self.sensor_data["buttons0"] = buttons0_raw
+                self.sensor_data["buttons1"] = buttons1_raw
+
+                print(
+                    f"[ALUA][DATA] scl0={scl0_raw} scl1={scl1_raw} "
+                    f"contatto={contatto_raw} slider0={slider0_raw} slider1={slider1_raw} "
+                    f"buttons0={buttons0_raw} buttons1={buttons1_raw}"
+                )
+
+                # --- STORICO (per il contratto) ---
+                self.scl_history.append((scl_combined, slider_combined))
                 if len(self.scl_history) > MAX_HISTORY_LEN:
                     self.scl_history.pop(0)
 
-                # 5. Invio dati a Pure Data (OSC)
-                self.send_osc_data()
+                # --- INVIO OSC SOLO DI QUELLO CHE TI SERVE ---
+                self.client.send_message("/alua/scl0", scl0_raw)
+                self.client.send_message("/alua/scl1", scl1_raw)
+                self.client.send_message("/alua/contatto", contatto_raw)
 
-                # 6. Controllo Trigger Stampa
+                # Controllo se generare il contratto
                 self.check_trigger_contract()
 
         except ValueError:
-            pass
+            # Se la riga contiene testo non numerico, la ignoriamo
+            pass  
         except Exception as e:
-            print(f"[ALUA] Errore loop: {e}")
+            print(f"[ALUA] Errore processamento dati: {e}")
+
+
 
     def send_osc_data(self):
         """ Invia tutti i dati catalogati a Pure Data """
