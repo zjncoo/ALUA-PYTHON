@@ -1,6 +1,4 @@
 """
-alua_system.py
-
 Responsabilità:
 - leggere i dati dall'Arduino (seriale)
 - mappare bottoni -> etichette relazioni (6 per persona)
@@ -23,10 +21,11 @@ from pythonosc import udp_client
 # -------------------------
 # Configurazione (modifica qui)
 # -------------------------
-SERIAL_PORT = "/dev/cu.usbmodem11301"   # cambia se necessario
+SERIAL_PORT = "/dev/cu.usbmodem2101"   # cambia se necessario
 BAUD_RATE = 115200
 SERIAL_TIMEOUT = 1.0
 
+# Pure Data OSC settings
 PD_IP = "127.0.0.1"
 PD_PORT = 8000
 
@@ -187,7 +186,7 @@ class AluaSystem:
             for i, v in enumerate(raw_packet["buttons1"]):
                 self.osc.send_message(f"/alua/p1/button/{i}", int(v))
 
-            log.debug("Inviati messaggi OSC a Pure Data")
+            #log.debug("Inviati messaggi OSC a Pure Data")
         except Exception as e:
             log.error(f"Errore invio OSC a PD: {e}")
 
@@ -261,8 +260,13 @@ class AluaSystem:
                 log.error(f"Errore nella chiamata raw_callback: {e}")
 
         # 3) log sintetico a INFO per monitoraggio
-        log.info(f"RAW_STREAM SCL0={pkt['scl0']} SCL1={pkt['scl1']} CAP={pkt['capacita']} "
-                 f"SL0={pkt['slider0']} SL1={pkt['slider1']} R0={pkt['relazioni_p0']} R1={pkt['relazioni_p1']}")
+        log.info(
+         "\n[SENSORE]\n"
+        f"  PERSONA 0 → SCL={pkt['scl0']:4d} | Slider={pkt['slider0']:4d} | Relazioni={pkt['relazioni_p0']}\n"
+        f"  PERSONA 1 → SCL={pkt['scl1']:4d} | Slider={pkt['slider1']:4d} | Relazioni={pkt['relazioni_p1']}\n"
+        f"  Capacitivo = {pkt['capacita']}\n"
+        )
+
 
     # -------------------------
     # Loop principale (blocking)

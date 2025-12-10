@@ -56,5 +56,5 @@ void loop() {
 
   Serial.println(); // fine riga
 
-  delay(20); // ~50 Hz
+  delay(50); // ~50 Hz
 }
