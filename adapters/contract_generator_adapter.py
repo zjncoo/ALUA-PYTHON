@@ -39,6 +39,7 @@ def normalize_history(engine):
 from CONTRACT.contract_generator import genera_pdf_contratto_A4
 
 
+
 class ContractGeneratorAdapter:
     def convert_to_pdf_input(self, processed_data):
         """Pass‑through: non modifica i dati."""
