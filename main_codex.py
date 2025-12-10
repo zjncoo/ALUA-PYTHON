@@ -13,7 +13,7 @@ import pygame
 # IMPORT SISTEMA
 # -------------------------
 
-USE_FAKE = True  # <= True quando non hai Arduino
+USE_FAKE = False  # <= True quando non hai Arduino
 
 if USE_FAKE:
     from alua_system_fake import AluaSystemFake as AluaSystem
