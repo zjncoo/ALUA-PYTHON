@@ -9,51 +9,54 @@ try:
     from contract_blocks import lissajous
     from contract_blocks import qrcode_generator
     from contract_blocks import relationship_viz
-    print("[CONTRACT] ✅ Blocchi grafici importati.")
+    # NUOVO IMPORT AGGIUNTO:
+    from contract_blocks import conductance_graph 
+    print("[CONTRACT] ✅ Tutti i blocchi grafici importati.")
 except ImportError as e:
     print(f"[CONTRACT] ❌ ERRORE IMPORT: {e}")
+    # Se manca una libreria (es. matplotlib), il programma si ferma qui
     exit()
 
 # ==============================================================================
-# 📐 CONFIGURAZIONE LAYOUT (COORDINATE)
+# 📐 CONFIGURAZIONE LAYOUT (IN PIXEL)
 # ==============================================================================
-# Modifica qui i numeri per spostare gli elementi sul foglio A4.
-# Unità di misura: millimetri (mm).
-# X = Distanza dal bordo sinistro
-# Y = Distanza dal bordo superiore
-# W = Larghezza immagine
-# H = Altezza immagine
-# ==============================================================================
+# ⚠️ IMPORTANTE: Inserisci qui la larghezza esatta del tuo 'layout_contratto.png'
+LARGHEZZA_TEMPLATE_PX = 2480 
+
+def px(pixel_value):
+    """Converte pixel in millimetri per FPDF"""
+    return pixel_value * (210.0 / LARGHEZZA_TEMPLATE_PX)
 
 LAYOUT = {
-    # 1. EMBLEMA GRAFICO (Lissajous) - In alto a sinistra
-    'Lissajous': { 'x': 22, 'y': 42, 'w': 55, 'h': 55 },
+    # 1. EMBLEMA GRAFICO (Lissajous)
+    'Lissajous': { 'x': 107, 'y': 484, 'w': 697, 'h': 718 },
 
-    # 2. PERCENTUALE COMPATIBILITÀ (Testo grande) - In alto a destra
-    # Nota: X,Y è l'angolo in alto a sx della casella di testo
-    'Percentuale': { 'x': 138, 'y': 55, 'font_size': 24 },
+    # 2. PERCENTUALE (Solo testo)
+    'Percentuale': { 'x': 1150, 'y': 780, 'font_size': 100 },
 
-    # 3. QR CODE - In basso a destra (piccolo)
-    'QRCode': { 'x': 155, 'y': 230, 'w': 35, 'h': 35 },
+    # 3. QR CODE
+    'QRCode': { 'x': 1830, 'y': 2700, 'w': 400, 'h': 400 },
 
-    # 4. VISUALIZZAZIONE "PEZZO" (P0 - Sinistra)
-    'Pezzo_P0': { 'x': 18, 'y': 115, 'w': 82 }, 
+    # 4. VISUALIZZAZIONE "PEZZO" (Sinistra - P0)
+    'Pezzo_P0': { 'x': 107, 'y': 484, 'w': 697 }, 
 
-    # 5. VISUALIZZAZIONE "PEZZO" (P1 - Destra)
-    'Pezzo_P1': { 'x': 112, 'y': 115, 'w': 82 },
+    # 5. VISUALIZZAZIONE "PEZZO" (Destra - P1)
+    'Pezzo_P1': { 'x': 1687, 'y': 481, 'w': 697 },
+    
+    # 6. HEADER (Data e ID)
+    'Header_Data': { 'x': 1650, 'y': 300 },
+    'Header_ID':   { 'x': 1650, 'y': 360 },
 
-    # 6. HEADER (Data e ID) - In alto a destra sopra la percentuale
-    'Header_Data': { 'x': 140, 'y': 25 },
-    'Header_ID':   { 'x': 140, 'y': 30 },
+    # 7. TESTO CLAUSOLE 
+    'Clausole': { 'x': 260, 'y': 2600, 'w_text': 1400, 'font_size': 10 },
 
-    # 7. TESTO CLAUSOLE - In basso a sinistra
-    # w_text = larghezza della colonna di testo
-    'Clausole': { 'x': 22, 'y': 220, 'w_text': 125, 'font_size': 10 },
+    # 8. NOTA ROSSA (Anello debole)
+    'Nota_Rossa': { 'x': 260, 'y': 2950, 'font_size': 9 },
 
-    # 8. NOTA CRITICA (Scritta rossa se c'è un "colpevole")
-    'Nota_Rossa': { 'x': 22, 'y': 250, 'font_size': 9 }
+    # --- NUOVO: GRAFICO CONDUTTANZA ---
+    # Posizionato ipoteticamente sopra le clausole (modifica Y se serve)
+    'Graph': { 'x': 110, 'y': 1403, 'w': 1180, 'h': 400 } 
 }
-
 # ==============================================================================
 
 def genera_testo_clausole(tipi_attivi):
@@ -74,9 +77,7 @@ def genera_testo_clausole(tipi_attivi):
     return testo
 
 def costruisci_url_dati(dati):
-    """ Crea l'URL completo con tutti i parametri per la Web App. """
     base_url = "https://alua-gamma.vercel.app/"
-    
     raw_p0 = dati.get('raw_p0', {'buttons': [0]*6, 'slider': 0})
     raw_p1 = dati.get('raw_p1', {'buttons': [0]*6, 'slider': 0})
     giudizio = dati.get('giudizio_negativo', {})
@@ -99,7 +100,7 @@ def costruisci_url_dati(dati):
     return base_url + "?" + urllib.parse.urlencode(params)
 
 def genera_pdf_contratto_A4(dati):
-    print("\n[CONTRACT] 📄 Inizio assemblaggio PDF...")
+    print("\n[CONTRACT] 📄 Inizio assemblaggio PDF (Modalità Pixel)...")
     
     base_dir = os.path.abspath(os.path.dirname(__file__))
     output_dir = os.path.join(base_dir, 'output_contracts')
@@ -141,31 +142,28 @@ def genera_pdf_contratto_A4(dati):
     path_liss = os.path.join(base_dir, "temp_liss.png")
     lissajous.generate_lissajous(storico, path_liss)
     if os.path.exists(path_liss):
-        # USA CONFIGURAZIONE
         c = LAYOUT['Lissajous']
-        pdf.image(path_liss, x=c['x'], y=c['y'], w=c['w'], h=c['h'])
+        pdf.image(path_liss, x=px(c['x']), y=px(c['y']), w=px(c['w']), h=px(c['h']))
         files_temp.append(path_liss)
 
-    # --- B. PERCENTUALE (TESTO) ---
+    # --- B. PERCENTUALE ---
     c = LAYOUT['Percentuale']
-    pdf.set_font_size(c['font_size'])
-    pdf.set_xy(c['x'], c['y'])
-    pdf.cell(55, 20, txt=f"{compat}%", align='C') 
+    pdf.set_font_size(c['font_size']) 
+    pdf.set_xy(px(c['x']), px(c['y']))
+    pdf.cell(px(200), px(50), txt=f"{compat}", align='C')
 
     # --- C. QR CODE ---
     path_qr = os.path.join(base_dir, "temp_qr.png")
     link_completo = costruisci_url_dati(dati)
-    print(f"[CONTRACT] 🔗 Link generato: {link_completo}")
-    
+    print(f"[CONTRACT] 🔗 Link: {link_completo}")
     qrcode_generator.generate_qr(link_completo, path_qr)
     
     if os.path.exists(path_qr):
-        # USA CONFIGURAZIONE
         c = LAYOUT['QRCode']
-        pdf.image(path_qr, x=c['x'], y=c['y'], w=c['w'], h=c['h'])
+        pdf.image(path_qr, x=px(c['x']), y=px(c['y']), w=px(c['w']), h=px(c['h']))
         files_temp.append(path_qr)
 
-    # --- D. VISUALIZZAZIONE PEZZI (P0 e P1) ---
+    # --- D. VISUALIZZAZIONE PEZZI ---
     path_p0 = os.path.join(base_dir, "temp_p0.png")
     path_p1 = os.path.join(base_dir, "temp_p1.png")
     
@@ -174,41 +172,52 @@ def genera_pdf_contratto_A4(dati):
     
     if os.path.exists(path_p0):
         c = LAYOUT['Pezzo_P0']
-        pdf.image(path_p0, x=c['x'], y=c['y'], w=c['w'])
+        pdf.image(path_p0, x=px(c['x']), y=px(c['y']), w=px(c['w']))
         files_temp.append(path_p0)
     if os.path.exists(path_p1):
         c = LAYOUT['Pezzo_P1']
-        pdf.image(path_p1, x=c['x'], y=c['y'], w=c['w'])
+        pdf.image(path_p1, x=px(c['x']), y=px(c['y']), w=px(c['w']))
         files_temp.append(path_p1)
 
-    # --- E. TESTI HEADER ---
+    # --- E. HEADER ---
     pdf.set_font_size(10)
     contract_id = datetime.now().strftime("%Y%m%d-%H%M")
     
     c = LAYOUT['Header_Data']
-    pdf.set_xy(c['x'], c['y'])
-    pdf.cell(60, 10, f"DATA: {datetime.now().strftime('%d.%m.%Y')}", ln=1, align='R')
+    pdf.set_xy(px(c['x']), px(c['y']))
+    pdf.cell(px(300), 10, f"DATA: {datetime.now().strftime('%d.%m.%Y')}", ln=1, align='L')
     
     c = LAYOUT['Header_ID']
-    pdf.set_xy(c['x'], c['y'])
-    pdf.cell(60, 10, f"ID: {contract_id}", ln=1, align='R')
+    pdf.set_xy(px(c['x']), px(c['y']))
+    pdf.cell(px(300), 10, f"ID: {contract_id}", ln=1, align='L')
 
-    # --- F. CLAUSOLE ---
+    # --- F. NUOVO: GRAFICO CONDUTTANZA ---
+    path_graph = os.path.join(base_dir, "temp_graph.png")
+    # Genera il grafico usando lo storico dati (deve contenere tuple [gsr, slider] o simile)
+    conductance_graph.genera_grafico_conduttanza(storico, path_graph)
+    
+    if os.path.exists(path_graph):
+        c = LAYOUT['Graph']
+        # W e H fissati nella configurazione layout
+        pdf.image(path_graph, x=px(c['x']), y=px(c['y']), w=px(c['w']), h=px(c['h']))
+        files_temp.append(path_graph)
+
+    # --- G. CLAUSOLE ---
     c = LAYOUT['Clausole']
     pdf.set_font_size(c['font_size'])
     testo = genera_testo_clausole(dati.get('tipi_selezionati', []))
-    pdf.set_xy(c['x'], c['y'])
-    pdf.multi_cell(c['w_text'], 5, txt=testo, align='L')
+    pdf.set_xy(px(c['x']), px(c['y']))
+    pdf.multi_cell(px(c['w_text']), 5, txt=testo, align='L')
     
-    # --- G. NOTA ROSSA (ANELLO DEBOLE) ---
+    # --- H. NOTA ROSSA ---
     giudizio = dati.get('giudizio_negativo', {})
     if giudizio and giudizio.get('id_colpevole', -1) != -1:
         c = LAYOUT['Nota_Rossa']
         pdf.set_font_size(c['font_size'])
-        pdf.set_text_color(200, 0, 0) # Rosso
-        pdf.set_xy(c['x'], c['y'])
+        pdf.set_text_color(200, 0, 0)
+        pdf.set_xy(px(c['x']), px(c['y']))
         pdf.cell(0, 10, f"NOTA CRITICA: Instabilità in {giudizio['nome']} ({giudizio['motivo']})")
-        pdf.set_text_color(0, 0, 0) # Reset nero
+        pdf.set_text_color(0, 0, 0)
 
     # Output
     out_file = os.path.join(output_dir, f"Contract_{contract_id}.pdf")
@@ -227,9 +236,10 @@ def genera_pdf_contratto_A4(dati):
     return out_file
 
 if __name__ == "__main__":
-    # Test Rapido
+    # Test Rapido con Dati Finti
     dati_test = {
-        'storico': [(100, 50), (200, 60)], 
+        # Lo storico deve essere una lista di tuple [(val1, val2), ...]
+        'storico': [(100 + i*5, 50 + i*2) for i in range(50)], 
         'compatibilita': 88, 
         'scl0': 450, 'scl1': 800,
         'raw_p0': {'buttons':[1,0,0,0,1,0], 'slider':80}, 
