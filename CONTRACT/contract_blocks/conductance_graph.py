@@ -5,24 +5,26 @@ from scipy.ndimage import gaussian_filter1d
 # Backend Agg per evitare errori senza display
 matplotlib.use('Agg')
 
-def genera_grafico_su_misura(storico_dati, output_path="grafico_gsr_2070x294.png"):
+# MANTENIAMO IL NOME ESATTO RICHIESTO DAL SISTEMA
+def genera_grafico_conduttanza(storico_dati, output_path="temp_conductance.png"):
     
     # 1. Configurazione Dimensioni Precise (Pixel -> Pollici)
-    # Per ottenere esattamente 2070x294 pixel
+    # Target: 2070x294 pixel
     W_PX = 2070
     H_PX = 294
     DPI = 100
     figsize_inches = (W_PX / DPI, H_PX / DPI)
 
+    # Controllo sicurezza dati
     if not storico_dati or len(storico_dati) < 2:
         return output_path
 
-    # 2. Dati
+    # 2. Preparazione Dati
     vals_a = [x[0] for x in storico_dati]
     vals_b = [x[1] for x in storico_dati]
     tempo = range(len(storico_dati))
 
-    # Smoothing
+    # Smoothing (Sigma=6 come richiesto per curve morbide)
     vals_a_smooth = gaussian_filter1d(vals_a, sigma=6)
     vals_b_smooth = gaussian_filter1d(vals_b, sigma=6)
 
@@ -46,7 +48,7 @@ def genera_grafico_su_misura(storico_dati, output_path="grafico_gsr_2070x294.png
     # clip_on=False assicura che il pallino si veda interamente anche se è sul bordo
     plt.plot(0, 0, marker='o', color='black', markersize=5, clip_on=False, zorder=10)
 
-    # 6. Limiti e Ticks
+    # 6. Limiti e Ticks (Ridefinizione grandezze richieste)
     plt.xlim(0, 60)   # Ascissa fissa a 60
     plt.ylim(0, 400)  # Ordinata fissa a 400
     
@@ -55,25 +57,23 @@ def genera_grafico_su_misura(storico_dati, output_path="grafico_gsr_2070x294.png
     plt.yticks([])
 
     # 7. Etichette e Legenda
-    # Regoliamo i font per l'altezza ridotta (294px è bassa)
+    # Regoliamo i font per l'altezza ridotta
     plt.ylabel('GSR', fontsize=9, fontname='monospace', labelpad=5)
     plt.xlabel('Tempo', fontsize=9, fontname='monospace', loc='right', labelpad=5)
 
     plt.legend(
         loc='upper center',        
-        bbox_to_anchor=(0.5, 1.25), # Spostata in alto per non coprire il grafico basso
+        bbox_to_anchor=(0.5, 1.25), 
         ncol=2, 
         frameon=False, 
         prop={'family': 'monospace', 'size': 9}
     )
 
-    # 8. Margini Manuali (Fondamentale per le dimensioni esatte)
-    # Regoliamo i margini interni affinché nulla venga tagliato
-    # top=0.80 lascia spazio alla legenda, bottom=0.15 alle etichette
+    # 8. Margini Manuali
+    # Fondamentale per mantenere 2070x294px senza tagli
     plt.subplots_adjust(left=0.03, right=0.96, top=0.75, bottom=0.15)
 
     # 9. Salvataggio
-    # Rimosso bbox_inches='tight' per garantire 2070x294px
     plt.savefig(output_path, transparent=True, dpi=DPI)
     plt.close()
     
