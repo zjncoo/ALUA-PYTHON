@@ -9,24 +9,24 @@ import os
 
 FILL_COLOR = (0, 0, 0, 255)       # Nero Pieno
 TEXT_COLOR = (0, 0, 0, 255)       # Testo Nero
-FONT_SIZE = 34 
-BTN_RADIUS = 56  # <--- Raggio dei cerchi neri dei bottoni
+FONT_SIZE = 40 
+BTN_RADIUS = 83  # <--- Raggio dei cerchi neri dei bottoni
 
 # 1. COORDINATE SLIDER (Rettangolo Interno Vuoto)
 # Format: (Left_X, Top_Y, Right_X, Bottom_Y)
 # Esempio: Se lo slider è a destra nell'immagine, la X sarà alta (es. 600)
-SLIDER_BOX = (567, 85, 680, 631) 
+SLIDER_BOX = (842, 168, 1005, 952) 
 
 # 2. COORDINATE CENTRI BOTTONI (Colonna a Sinistra)
 # Lista di 6 coordinate (X, Y) dall'alto in basso.
 # Esempio: Se sono a sinistra, la X sarà bassa (es. 100)
 BTN_CENTERS = [
-    (117, 86),  # Bottone 0 (Alto)
-    (371, 86),  # Bottone 1
-    (117, 330),  # Bottone 2
-    (371, 330),  # Bottone 3
-    (117, 573),  # Bottone 4
-    (371, 573),  # Bottone 5 (Basso)
+    (194, 168),  # Bottone 0 (Alto)
+    (560, 168),  # Bottone 1
+    (194, 520),  # Bottone 2
+    (560, 520),  # Bottone 3
+    (194, 870),  # Bottone 4
+    (560, 870),  # Bottone 5 (Basso)
 ]
 # ==============================================================================
 
@@ -81,7 +81,7 @@ def genera_pezzo_singolo(dati_persona, path_output):
     text_w, text_h = draw.textsize(text, font=font) if hasattr(draw, 'textsize') else (40, 20)
     # Centra il testo sopra la colonna dello slider
     text_x = lx + (rx - lx - text_w) // 2 - 10
-    text_y = ty - 34 - text_h - 10 
+    text_y = ty - 34 - text_h - 35
     draw.text((text_x, text_y), text, font=font, fill=TEXT_COLOR)
 
     # 5. Salvataggio

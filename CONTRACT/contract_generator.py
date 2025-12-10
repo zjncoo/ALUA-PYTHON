@@ -38,10 +38,10 @@ LAYOUT = {
     'QRCode': { 'x': 1830, 'y': 2700, 'w': 400, 'h': 400 },
 
     # 4. VISUALIZZAZIONE "PEZZO" (Sinistra - P0)
-    'Pezzo_P0': { 'x': 107, 'y': 484, 'w': 697 }, 
+    'Pezzo_P0': { 'x': 85, 'y': 445, 'w': 767 }, 
 
     # 5. VISUALIZZAZIONE "PEZZO" (Destra - P1)
-    'Pezzo_P1': { 'x': 1687, 'y': 481, 'w': 697 },
+    'Pezzo_P1': { 'x': 1691, 'y': 445, 'w': 767 },
     
     # 6. HEADER (Data e ID)
     'Header_Data': { 'x': 1650, 'y': 300 },
@@ -55,7 +55,7 @@ LAYOUT = {
 
     # --- NUOVO: GRAFICO CONDUTTANZA ---
     # Posizionato ipoteticamente sopra le clausole (modifica Y se serve)
-    'Graph': { 'x': 110, 'y': 1403, 'w': 1180, 'h': 400 } 
+    'Graph': { 'x': 110, 'y': 1403, 'w': 2303, 'h': 401 } 
 }
 # ==============================================================================
 
