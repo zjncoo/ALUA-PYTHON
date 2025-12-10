@@ -1,239 +1,194 @@
 import serial
 import time
-import sys
 from pythonosc import udp_client
 
-# Aggiungiamo la cartella CONTRACT al path per poter importare i moduli
-sys.path.append('CONTRACT')
 
-# --- IMPORT MODULI ---
-try:
-    from contract_generator import genera_pdf_contratto_A4
-    print("[ALUA] ✅ Modulo Contract Generator caricato.")
-except ImportError as e:
-    print(f"[ALUA] ⚠️ Errore importazione Contract Generator: {e}")
-    genera_pdf_contratto_A4 = None
+# =============================
+# CONFIGURAZIONI
+# =============================
 
-try:
-    from printer_manager import invia_a_stampante
-    print("[ALUA] ✅ Modulo Printer Manager caricato.")
-except ImportError as e:
-    print(f"[ALUA] ⚠️ Errore importazione Printer Manager: {e}")
-    def invia_a_stampante(path): print(f"[MOCK] Stampa simulata: {path}")
+SERIAL_PORT = '/dev/cu.usbmodem21301'
+BAUD_RATE = 115200
 
-# --- CONFIGURAZIONE ---
-# ⚠️ VERIFICA LA PORTA SERIALE
-SERIAL_PORT = '/dev/cu.usbmodem21301' 
-BAUD_RATE = 115200 
-
-# Configurazione OSC per Pure Data
 PD_IP = "127.0.0.1"
-PD_PORT = 8000      
+PD_PORT = 8000
 
-COOLDOWN_CONTRATTO = 15 
-MAX_HISTORY_LEN = 100   
+MAX_HISTORY = 500  # per registrazioni temporanee
 
-# Etichette per i 6 bottoni (si ripetono per Persona 0 e Persona 1)
-# Modifica queste stringhe in base a cosa c'è scritto fisicamente sui pulsanti
-TIPI_RELAZIONE = [
-    "CONOSCENZA", # B0 / B6
-    "ROMANTICA",      # B1 / B7
-    "LAVORATIVA",     # B2 / B8
-    "AMICALE",     # B3 / B9
-    "FAMILIARE",    # B4 / B10
-    "CONVIVENZA"         # B5 / B11
+# Etichette relazioni per i bottoni
+RELAZIONI = [
+    "CONOSCENZA",
+    "ROMANTICA",
+    "LAVORATIVA",
+    "AMICALE",
+    "FAMILIARE",
+    "CONVIVENZA"
 ]
 
+
+# =============================
+# CLASSE ALUA SYSTEM
+# =============================
+
 class AluaSystem:
-    def __init__(self):
-        self.client = udp_client.SimpleUDPClient(PD_IP, PD_PORT)
+    def __init__(self, compatibility_callback=None):
+        """
+        compatibility_callback = funzione chiamata
+        quando arrivano nuovi dati raw
+        (la implementiamo in compatibility_logic)
+        """
         self.ser = None
-        self.last_contract_time = 0
-        
-        # Buffer per lo storico grafico (SCL, Slider)
-        self.scl_history = [] 
-        
-        # Struttura dati completa del sistema
-        self.sensor_data = {
-            "scl0": 0, "scl1": 0, "scl_max": 0,
-            "contatto": 0,
-            "slider0": 0, "slider1": 0, "slider_avg": 0,
-            "buttons0": [0]*6, # Stato 0/1 dei bottoni persona 0
-            "buttons1": [0]*6, # Stato 0/1 dei bottoni persona 1
-            "tipi_attivi": []  # Lista delle stringhe selezionate (es. ["AMICIZIA", "INTIMO"])
+        self.client = udp_client.SimpleUDPClient(PD_IP, PD_PORT)
+
+        self.compatibility_callback = compatibility_callback
+
+        # Registrazione dati nel tempo (controllata da main_codex)
+        self.is_recording = False
+        self.record_buffer = []
+
+        # Ultimi valori letti da Arduino
+        self.data = {
+            "scl0": 0,
+            "scl1": 0,
+            "capacita": 0,
+            "slider0": 0,
+            "slider1": 0,
+            "buttons_p0": [0] * 6,
+            "buttons_p1": [0] * 6,
+            "relazioni_p0": [],
+            "relazioni_p1": []
         }
 
+    # -------------------------
+    # Connessione Seriale
+    # -------------------------
     def connect(self):
         try:
             self.ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-            print(f"[ALUA] 🔌 Connesso ad Arduino su {SERIAL_PORT}")
-            time.sleep(2) 
+            print("[ALUA] 🔌 Connesso ad Arduino.")
+            time.sleep(2)
             return True
-        except serial.SerialException as e:
-            print(f"[ALUA] ❌ Errore Seriale: {e}")
+        except Exception as e:
+            print(f"[ALUA] ❌ Errore seriale: {e}")
             return False
 
-    def map_range(self, value, in_min, in_max, out_min, out_max):
-        return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
-
-    def process_line(self, line):
+    # -------------------------
+    # Parsing riga Arduino
+    # -------------------------
+    def process_line(self, raw):
         try:
-            # DEBUG: riga grezza ricevuta da Arduino
-            print("[ALUA][RAW]", line)
+            parts = raw.decode("utf-8", errors="ignore").strip().split()
 
-            parts = line.decode('utf-8', errors='ignore').strip().split()
+            if len(parts) < 17:
+                return  # riga incompleta
 
-            # Formato da main.ino:
-            # SCL0 SCL1 CONTATTO SLIDER0 SLIDER1 B0 B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 B11
-            if len(parts) >= 17:
-                # --- PARSING RAW (UNO PER UNO, CON INDICI ESPLICITI) ---
-                scl0_raw      = int(parts[0])   # persona 0
-                scl1_raw      = int(parts[1])   # persona 1
-                contatto_raw  = int(parts[2])
-                slider0_raw   = int(parts[3])   # persona 0
-                slider1_raw   = int(parts[4])   # persona 1
+            scl0 = int(parts[0])
+            scl1 = int(parts[1])
+            capacita = int(parts[2])
+            slider0 = int(parts[3])
+            slider1 = int(parts[4])
 
-                # 12 bottoni in ordine
-                buttons_raw = [int(x) for x in parts[5:17]]  # B0..B11
-                buttons0_raw = buttons_raw[0:6]              # B0..B5 -> persona 0
-                buttons1_raw = buttons_raw[6:12]             # B6..B11 -> persona 1
+            buttons = [int(x) for x in parts[5:17]]
+            b0 = buttons[0:6]
+            b1 = buttons[6:12]
 
-                # --- AGGREGAZIONI (per il contratto) ---
-                scl_combined    = max(scl0_raw, scl1_raw)
-                slider_combined = int((slider0_raw + slider1_raw) / 2)
+            # Aggiorno struttura dati interna
+            self.data["scl0"] = scl0
+            self.data["scl1"] = scl1
+            self.data["capacita"] = capacita
+            self.data["slider0"] = slider0
+            self.data["slider1"] = slider1
+            self.data["buttons_p0"] = b0
+            self.data["buttons_p1"] = b1
 
-                # --- SALVA NEI SENSOR DATA ---
-                self.sensor_data["scl0"]     = scl0_raw
-                self.sensor_data["scl1"]     = scl1_raw
-                self.sensor_data["scl"]      = scl_combined
+            # Assegna nomi relazioni ai bottoni attivi
+            self.data["relazioni_p0"] = [
+                RELAZIONI[i] for i, v in enumerate(b0) if v == 1
+            ]
 
-                self.sensor_data["contatto"] = contatto_raw
+            self.data["relazioni_p1"] = [
+                RELAZIONI[i] for i, v in enumerate(b1) if v == 1
+            ]
 
-                self.sensor_data["slider0"]  = slider0_raw
-                self.sensor_data["slider1"]  = slider1_raw
-                self.sensor_data["slider"]   = slider_combined
+            # --------------------------
+            # Invio OSC verso Pure Data
+            # --------------------------
+            self.send_to_pd()
 
-                self.sensor_data["buttons0"] = buttons0_raw
-                self.sensor_data["buttons1"] = buttons1_raw
+            # --------------------------
+            # Invio dati raw a compatibility_logic
+            # --------------------------
+            if self.compatibility_callback:
+                self.compatibility_callback(self.data)
 
-                print(
-                    f"[ALUA][DATA] scl0={scl0_raw} scl1={scl1_raw} "
-                    f"contatto={contatto_raw} slider0={slider0_raw} slider1={slider1_raw} "
-                    f"buttons0={buttons0_raw} buttons1={buttons1_raw}"
-                )
+            # --------------------------
+            # Se sto registrando → salva
+            # --------------------------
+            if self.is_recording:
+                self.record_buffer.append({
+                    "time": time.time(),
+                    **self.data
+                })
+                if len(self.record_buffer) > MAX_HISTORY:
+                    self.record_buffer.pop(0)
 
-                # --- STORICO (per il contratto) ---
-                self.scl_history.append((scl_combined, slider_combined))
-                if len(self.scl_history) > MAX_HISTORY_LEN:
-                    self.scl_history.pop(0)
-
-                # --- INVIO OSC SOLO DI QUELLO CHE TI SERVE ---
-                self.client.send_message("/alua/scl0", scl0_raw)
-                self.client.send_message("/alua/scl1", scl1_raw)
-                self.client.send_message("/alua/contatto", contatto_raw)
-
-                # Controllo se generare il contratto
-                self.check_trigger_contract()
-
-        except ValueError:
-            # Se la riga contiene testo non numerico, la ignoriamo
-            pass  
         except Exception as e:
-            print(f"[ALUA] Errore processamento dati: {e}")
+            print(f"[ALUA] ⚠️ Errore parsing: {e}")
 
+    # -------------------------
+    # Invio dati a Pure Data
+    # -------------------------
+    def send_to_pd(self):
+        d = self.data
+        self.client.send_message("/alua/scl0", d["scl0"])
+        self.client.send_message("/alua/scl1", d["scl1"])
+        self.client.send_message("/alua/capacita", d["capacita"])
 
+        self.client.send_message("/alua/slider0", d["slider0"])
+        self.client.send_message("/alua/slider1", d["slider1"])
 
-    def send_osc_data(self):
-        """ Invia tutti i dati catalogati a Pure Data """
-        # Valori Biometrici
-        self.client.send_message("/alua/bio/scl0", self.sensor_data["scl0"])
-        self.client.send_message("/alua/bio/scl1", self.sensor_data["scl1"])
-        self.client.send_message("/alua/bio/contatto", self.sensor_data["contatto"])
-        
-        # Valori Interazione (Slider)
-        self.client.send_message("/alua/inter/slider0", self.sensor_data["slider0"])
-        self.client.send_message("/alua/inter/slider1", self.sensor_data["slider1"])
-        self.client.send_message("/alua/inter/compatibilita", self.sensor_data["slider_avg"]) # Mappato come "intensità" sonora
-        
-        # Valori Bottoni (Trigger suoni)
-        # Inviamo un messaggio unico con la lista dei bottoni attivi, oppure indici singoli
-        # Esempio: /alua/btn/0 1 (se premuto)
-        for i, stato in enumerate(self.sensor_data["buttons0"]):
-            self.client.send_message(f"/alua/btn/p0/{i}", stato)
-        for i, stato in enumerate(self.sensor_data["buttons1"]):
-            self.client.send_message(f"/alua/btn/p1/{i}", stato)
+        for i, v in enumerate(d["buttons_p0"]):
+            self.client.send_message(f"/alua/p0/button/{i}", v)
 
-    def check_trigger_contract(self):
-        current_time = time.time()
-        
-        # LOGICA DI TRIGGER:
-        # Attualmente scatta solo col tempo (COOLDOWN). 
-        # Modifica qui se vuoi che scatti solo se "contatto" == 1 o se un bottone specifico è premuto.
-        
-        # Esempio: Scatta se è passato il tempo E c'è contatto fisico
-        is_cooldown_over = (current_time - self.last_contract_time) > COOLDOWN_CONTRATTO
-        c_e_contatto = self.sensor_data["contatto"] > 1000 # Soglia capacitiva (da tarare)
-        
-        # Per ora usiamo solo il cooldown come nel tuo codice originale
-        if is_cooldown_over: 
-            
-            print(f"\n[ALUA] ✨ GENERAZIONE CONTRATTO IN CORSO...")
-            
-            # Calcolo dati per il PDF
-            compatibilita_calc = int(self.map_range(self.sensor_data["slider_avg"], 0, 1023, 0, 100))
-            compatibilita_calc = max(0, min(100, compatibilita_calc))
-            
-            # Calcolo Fascia (basato sullo stress/SCL massimo)
-            valore_scl = self.sensor_data["scl_max"]
-            fascia_calc = 1
-            if valore_scl > 700: fascia_calc = 4
-            elif valore_scl > 500: fascia_calc = 3
-            elif valore_scl > 300: fascia_calc = 2
-            
-            # Pacchetto dati per il generatore
-            dati_per_pdf = {
-                'gsr': valore_scl,                 # Per Lissajous
-                'compatibilita': compatibilita_calc, # Per Cerchi
-                'fascia': fascia_calc,             # Per Clausole e Costo
-                'tipi_selezionati': self.sensor_data["tipi_attivi"], # ["AMICIZIA", ...] per Testo
-                'storico': list(self.scl_history)  # Per Grafico lineare
-            }
-            
-            # Chiamata al generatore
-            if genera_pdf_contratto_A4:
-                try:
-                    filename = genera_pdf_contratto_A4(dati_per_pdf)
-                    print(f"[ALUA] 📄 PDF Creato: {filename}")
-                    
-                    # Notifica PD che il contratto è fatto (es. suono timbro)
-                    self.client.send_message("/alua/system/printed", 1) 
-                    
-                    if filename:
-                        invia_a_stampante(filename)
-                except Exception as e:
-                    print(f"[ALUA] ⚠️ Errore generazione PDF: {e}")
-            
-            self.last_contract_time = current_time
-            self.scl_history = [] # Reset storico dopo la stampa
+        for i, v in enumerate(d["buttons_p1"]):
+            self.client.send_message(f"/alua/p1/button/{i}", v)
 
+    # -------------------------
+    # API usate da main_codex
+    # -------------------------
+    def start_recording(self):
+        self.is_recording = True
+        self.record_buffer = []
+        print("[ALUA] 🎙️ Registrazione iniziata.")
+
+    def stop_recording(self):
+        self.is_recording = False
+        print("[ALUA] ⏹️ Registrazione terminata.")
+        return self.record_buffer
+
+    # -------------------------
+    # Loop principale
+    # -------------------------
     def start(self):
         if not self.connect():
             return
-        
-        print("[ALUA] Sistema avviato. In attesa dati seriali...")
+
+        print("[ALUA] Sistema pronto. In ascolto...")
         while True:
             try:
                 if self.ser.in_waiting:
                     line = self.ser.readline()
                     self.process_line(line)
+
             except KeyboardInterrupt:
                 print("\n[ALUA] Chiusura sistema.")
-                if self.ser: self.ser.close()
                 break
             except Exception as e:
                 print(f"[ALUA] Errore critico: {e}")
-                break 
+                break
 
+
+# Usato solo se lanciato da solo
 if __name__ == "__main__":
     app = AluaSystem()
     app.start()
