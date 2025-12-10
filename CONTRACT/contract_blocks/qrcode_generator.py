@@ -3,14 +3,14 @@ import os
 
 def generate_qr(link_data, output_path):
     """
-    Genera un QR code classico e lo salva come PNG.
+    Genera un QR code classico e lo salva come PNG, senza bordi bianchi.
     """
     # Configurazione QR
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
         box_size=10,
-        border=2,
+        border=0,  # <--- IMPOSTATO A 0 PER RIMUOVERE IL BORDO BIANCO
     )
     
     # Aggiunta dati

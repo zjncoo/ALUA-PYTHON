@@ -29,19 +29,19 @@ def px(pixel_value):
 
 LAYOUT = {
     # 1. EMBLEMA GRAFICO (Lissajous)
-    'Lissajous': { 'x': 107, 'y': 484, 'w': 697, 'h': 718 },
+    'Lissajous': { 'x': 290, 'y': 2330, 'w': 355, 'h': 355 },
 
     # 2. PERCENTUALE (Solo testo)
     'Percentuale': { 'x': 1150, 'y': 780, 'font_size': 100 },
 
     # 3. QR CODE
-    'QRCode': { 'x': 1830, 'y': 2700, 'w': 400, 'h': 400 },
+    'QRCode': { 'x': 2155, 'y': 3070, 'w': 209, 'h': 209 },
 
     # 4. VISUALIZZAZIONE "PEZZO" (Sinistra - P0)
-    'Pezzo_P0': { 'x': 85, 'y': 445, 'w': 767 }, 
+    'Pezzo_P0': { 'x': 85, 'y': 533, 'w': 767 }, 
 
     # 5. VISUALIZZAZIONE "PEZZO" (Destra - P1)
-    'Pezzo_P1': { 'x': 1691, 'y': 445, 'w': 767 },
+    'Pezzo_P1': { 'x': 1654, 'y': 533, 'w': 767 },
     
     # 6. HEADER (Data e ID)
     'Header_Data': { 'x': 1650, 'y': 300 },
@@ -138,13 +138,17 @@ def genera_pdf_contratto_A4(dati):
     
     files_temp = []
 
-    # --- A. LISSAJOUS ---
-    path_liss = os.path.join(base_dir, "temp_liss.png")
-    lissajous.generate_lissajous(storico, path_liss)
-    if os.path.exists(path_liss):
+    # --- A. LISSAJOUS (Vettoriale SVG) ---
+    path_liss = os.path.join(base_dir, "temp_liss.svg") # <--- NUOVO .svg
+    
+    # La funzione ora restituisce il path corretto (che forza .svg)
+    final_path_liss = lissajous.generate_lissajous(storico, path_liss)
+    
+    if os.path.exists(final_path_liss):
         c = LAYOUT['Lissajous']
-        pdf.image(path_liss, x=px(c['x']), y=px(c['y']), w=px(c['w']), h=px(c['h']))
-        files_temp.append(path_liss)
+        # FPDF2 supporta nativamente l'inserimento di SVG
+        pdf.image(final_path_liss, x=px(c['x']), y=px(c['y']), w=px(c['w']), h=px(c['h']))
+        files_temp.append(final_path_liss)
 
     # --- B. PERCENTUALE ---
     c = LAYOUT['Percentuale']
