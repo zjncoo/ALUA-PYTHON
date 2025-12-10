@@ -1,4 +1,3 @@
-# main_codex.py
 """
 Main orchestrator (versione Adapter) - DEBUG EXTENDED
 """
@@ -154,10 +153,14 @@ class ExperienceDirector:
         # Intro
         self.play_audio("intro")
 
-        # Slider 15s
-        log.debug("Inizio fase SLIDER (15s)")
-        self.play_audio("slider", wait=False)
+        # --- MODIFICA RICHIESTA: AUDIO SLIDER E POI 15 SECONDI ---
+        
+        # 1. Riproduzione Audio (Bloccante)
+        log.debug("Riproduzione spiegazione SLIDER (attendo fine audio)")
+        self.play_audio("slider", wait=True)  # <-- ORA È WAIT=TRUE
 
+        # 2. Timer 15 secondi per interazione (dopo che l'audio ha finito)
+        log.info("Inizio fase INTERAZIONE UTENTE (15s) per scelta bottoni/slider")
         t0 = time.time()
         sec_last = -1
 
@@ -165,13 +168,15 @@ class ExperienceDirector:
             elapsed = int(time.time() - t0)
 
             if elapsed != sec_last:
-                log.debug(f"[SLIDER] Secondo: {elapsed}")
+                log.debug(f"[INTERAZIONE] Secondo: {elapsed}/15")
                 sec_last = elapsed
 
             pkt = self.engine.update()
             log.debug(f"[UPDATE] Packet → {pkt}")
 
             time.sleep(0.01)
+            
+        # ---------------------------------------------------------
 
         # Mani / occhi / unire
         self.play_audio("mani")
