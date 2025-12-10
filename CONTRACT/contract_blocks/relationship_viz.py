@@ -21,12 +21,12 @@ SLIDER_BOX = (567, 85, 680, 631)
 # Lista di 6 coordinate (X, Y) dall'alto in basso.
 # Esempio: Se sono a sinistra, la X sarà bassa (es. 100)
 BTN_CENTERS = [
-    (119, 85),  # Bottone 0 (Alto)
-    (371, 85),  # Bottone 1
-    (119, 330),  # Bottone 2
+    (117, 86),  # Bottone 0 (Alto)
+    (371, 86),  # Bottone 1
+    (117, 330),  # Bottone 2
     (371, 330),  # Bottone 3
-    (119, 575),  # Bottone 4
-    (371, 575),  # Bottone 5 (Basso)
+    (117, 573),  # Bottone 4
+    (371, 573),  # Bottone 5 (Basso)
 ]
 # ==============================================================================
 
