@@ -1,13 +1,10 @@
-# raw_adapter.py
+# compatibility_adapter.py
 """
 Adapter per normalizzare il raw packet proveniente da AluaSystem
 in una forma coerente per compatibility_logic.
 """
 
 def normalize_raw_packet(engine):
-    """
-    Restituisce l'ultimo raw packet disponibile, normalizzato.
-    """
     # 1) metodo nativo
     if hasattr(engine, "get_last_raw") and callable(engine.get_last_raw):
         try:
@@ -25,7 +22,6 @@ def normalize_raw_packet(engine):
     if hasattr(engine, "sensor_data"):
         sd = engine.sensor_data
         if isinstance(sd, dict):
-            # Prova a rimappare in forma coerente
             return {
                 "scl0": sd.get("scl0", sd.get("gsr", 0)),
                 "scl1": sd.get("scl1", 0),
@@ -36,3 +32,14 @@ def normalize_raw_packet(engine):
             }
 
     return None
+
+# compatibility_adapter.py
+
+class CompatibilityAdapter:
+    def process(self, raw_pkt):
+        """
+        Per ora NON applichiamo logiche complesse.
+        Restituiamo direttamente il pacchetto così com'è.
+        In futuro potrai aggiungere compatibilità qui.
+        """
+        return raw_pkt

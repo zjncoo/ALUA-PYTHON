@@ -28,9 +28,12 @@ from alua_system import AluaSystem
 # -------------------------
 # IMPORT ADAPTER
 # -------------------------
-from adapters.contract_generator_adapter import AluaAdapter
+from adapters.engine_adapter import EngineAdapter
 from adapters.compatibility_adapter import CompatibilityAdapter
 from adapters.contract_generator_adapter import ContractGeneratorAdapter
+
+
+
 
 # -------------------------
 # LOGGING
@@ -78,7 +81,9 @@ class ExperienceDirector:
         alua_raw_engine = AluaSystem()
 
         # Adapter sopra il motore
-        self.engine = AluaAdapter(alua_raw_engine)
+    
+        self.engine = EngineAdapter(alua_raw_engine)
+
 
         # Adapter compatibilità
         self.comp_adapter = CompatibilityAdapter()

@@ -1,14 +1,10 @@
-# history_adapter.py
+# contract_generator_adapter.py
 """
 Adapter per estrarre lo storico in un formato unico compatibile
 con compatibility_logic.
 """
 
 def normalize_history(engine):
-    """
-    Restituisce una lista di dict:
-    { "elapsed_ms": X, "scl0": val, "scl1": val }
-    """
     # 1) nuova API: record_buffer
     if hasattr(engine, "record_buffer") and engine.record_buffer:
         return list(engine.record_buffer)
@@ -30,8 +26,29 @@ def normalize_history(engine):
                 })
             return converted
 
-        # già formato dict
+        # già dict
         if isinstance(hist[0], dict):
             return hist
 
     return []
+
+# contract_generator_adapter.py
+
+class ContractGeneratorAdapter:
+    def convert_to_pdf_input(self, processed_data):
+        """
+        Ritorna i dati così come arrivano.
+        """
+        return processed_data
+
+    def generate_pdf(self, dati_pdf):
+        """
+        Genera un PDF finto per ora.
+        In futuro: usa il tuo PDF Generator originale.
+        """
+        pdf_path = "contratto_output.pdf"
+        with open(pdf_path, "w") as f:
+            f.write(str(dati_pdf))
+
+        print(f"[MOCK] PDF generato: {pdf_path}")
+        return pdf_path
