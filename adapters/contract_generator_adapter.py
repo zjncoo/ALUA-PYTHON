@@ -32,23 +32,19 @@ def normalize_history(engine):
 
     return []
 
-# contract_generator_adapter.py
+
+# -----------------------------------------------------------
+# IMPORTA IL GENERATORE PDF REALE
+# -----------------------------------------------------------
+from CONTRACT.contract_generator import genera_pdf_contratto_A4
+
 
 class ContractGeneratorAdapter:
     def convert_to_pdf_input(self, processed_data):
-        """
-        Ritorna i dati così come arrivano.
-        """
+        """Pass‑through: non modifica i dati."""
         return processed_data
 
     def generate_pdf(self, dati_pdf):
-        """
-        Genera un PDF finto per ora.
-        In futuro: usa il tuo PDF Generator originale.
-        """
-        pdf_path = "contratto_output.pdf"
-        with open(pdf_path, "w") as f:
-            f.write(str(dati_pdf))
-
-        print(f"[MOCK] PDF generato: {pdf_path}")
-        return pdf_path
+        """Usa il vero generatore PDF."""
+        print("[ADAPTER] Generazione contratto tramite genera_pdf_contratto_A4()")
+        return genera_pdf_contratto_A4(dati_pdf)
