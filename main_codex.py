@@ -28,7 +28,7 @@ from alua_system import AluaSystem
 # -------------------------
 # IMPORT ADAPTER
 # -------------------------
-from adapters.history_adapter import AluaAdapter
+from adapters.contract_generator_adapter import AluaAdapter
 from adapters.compatibility_adapter import CompatibilityAdapter
 from adapters.contract_generator_adapter import ContractGeneratorAdapter
 
@@ -114,11 +114,8 @@ class ExperienceDirector:
     def generate_contract(self):
         log.info("📝 Raccolta dati da ALUA…")
 
-        from engine_adapter import EngineAdapter
-        ea = EngineAdapter(self.engine)
-
-        raw_pkt = ea.get_last_raw()
-        history = ea.get_history()
+        raw_pkt = self.engine.get_last_raw()
+        history = self.engine.get_history()
 
 
         if raw_pkt is None:

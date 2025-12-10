@@ -7,8 +7,8 @@ Adapter di alto livello che espone:
 È quello che si usa in main_codex.
 """
 
-from raw_adapter import normalize_raw_packet
-from history_adapter import normalize_history
+from adapters.compatibility_adapter import normalize_raw_packet
+from adapters.contract_generator_adapter import normalize_history
 
 class EngineAdapter:
     def __init__(self, engine):
