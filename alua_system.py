@@ -149,8 +149,6 @@ class AluaSystem:
                 "capacita": capacita,
                 "slider0": slider0,
                 "slider1": slider1,
-                "buttons0": buttons_p0,
-                "buttons1": buttons_p1,
                 # relazioni mappate (nomi)
                 "relazioni_p0": [RELAZIONI[i] for i, v in enumerate(buttons_p0) if v == 1],
                 "relazioni_p1": [RELAZIONI[i] for i, v in enumerate(buttons_p1) if v == 1]

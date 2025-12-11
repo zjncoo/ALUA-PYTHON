@@ -375,8 +375,12 @@ def processa_dati(raw_data):
     storico = raw_data.get("storico", [])
     arousal = valuta_trend_scl(storico)
 
+    # Calcoliamo esplicitamente la compatibilità SCL (0–100%) per
+    # riutilizzarla sia nel totale sia per l'anello debole.
+    score_scl = calcola_score_scl_da_arousal(arousal)  # 0..1
+
     percent = calcola_percentuale_compatibilita(raw_data, arousal)
-    anello = determina_anello_debole(raw_data)
+    anello = determina_anello_debole(arousal, score_scl * 100.0)
     fascia = calcola_fascia_rischio(percent)
 
     pacchetto = {

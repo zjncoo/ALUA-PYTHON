@@ -93,3 +93,18 @@ class EngineAdapter:
         Restituisce lo storico normalizzato (lista di dict con elapsed_ms, scl0, scl1).
         """
         return normalize_history(self.engine)
+
+    def start_recording(self):
+        """Wrapper per avviare la registrazione se supportata dall'engine."""
+        if hasattr(self.engine, "start_recording"):
+            self.engine.start_recording()
+            return True
+        log.warning("Engine non supporta start_recording")
+        return False
+
+    def stop_recording(self):
+        """Wrapper per fermare la registrazione se supportata dall'engine."""
+        if hasattr(self.engine, "stop_recording"):
+            return self.engine.stop_recording()
+        log.warning("Engine non supporta stop_recording")
+        return None
