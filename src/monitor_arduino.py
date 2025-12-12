@@ -3,7 +3,7 @@ import time
 import json
 
 # --- AGGIORNA CON LA TUA PORTA USB ---
-SERIAL_PORT = "/dev/cu.usbmodem11301"
+SERIAL_PORT = "/dev/cu.usbmodem21401"
 BAUD_RATE = 115200
 OUTPUT_FILE = "../data/arduino_data.jsonl"
 
@@ -82,6 +82,7 @@ def main():
             if ser.in_waiting > 0:
                 try:
                     line = ser.readline().decode('utf-8', errors='ignore')
+                    
                     parsed = parse_data(line)
                     
                     if parsed:

@@ -45,6 +45,15 @@ THRESHOLD_REL_SCL      = 0.10  # 10% #da valutare
 # Per confrontare facilmente i due slider, li convertiamo in una percentuale 0–100%.
 # SLIDER_SCALE è il fattore di conversione: moltiplichiamo il valore grezzo per (100 / 1023)
 # # così ogni valore dello slider diventa la sua percentuale reale.
+
+# RISCHIO: MAPPING PREZZI E LABELS
+# 1 = MINIMO, 2 = MODERATO, 3 = SIGNIFICATIVO, 4 = CATASTROFICO
+RISK_INFO = {
+    1: {"label": "MINIMO", "price": "250,00€"},
+    2: {"label": "MODERATO", "price": "500,00€"},
+    3: {"label": "SIGNIFICATIVO", "price": "750,00€"},
+    4: {"label": "CATASTROFICO", "price": "1.000,00€"}
+}
 SLIDER_MAX_RAW = 1023.0
 SLIDER_SCALE   = 100.0 / SLIDER_MAX_RAW   
 
@@ -621,6 +630,8 @@ def prepara_dati_per_contratto(data_list, result_pacchetto, assets):
         'elaborati': {
             'compatibilita': elab.get('compatibilita', 50),
             'fascia': elab.get('fascia', 4),
+            'risk_label': RISK_INFO.get(elab.get('fascia', 4), {}).get('label', "CATASTROFICO"),
+            'risk_price': RISK_INFO.get(elab.get('fascia', 4), {}).get('price', "1.000,00€"),
             'anello_debole': elab.get('colpevole', {}), # mapping chiave
             'tipi_selezionati': mapped_types
         },
@@ -734,4 +745,3 @@ def main():
 # se invece il file viene importato come modulo in un altro script, la funzione main() NON viene chiamata automaticamente.
 if __name__ == "__main__":
     main()
-
