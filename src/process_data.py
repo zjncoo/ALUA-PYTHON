@@ -745,4 +745,3 @@ def main():
 # se invece il file viene importato come modulo in un altro script, la funzione main() NON viene chiamata automaticamente.
 if __name__ == "__main__":
     main()
-
