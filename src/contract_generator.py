@@ -238,10 +238,19 @@ def genera_pdf_contratto_A4(dati):
         pdf.set_font_size(c['font_size'])
         pdf.set_text_color(200, 0, 0)  # rosso
         pdf.set_xy(px(c['x']), py(c['y']))
+        # Traduzione PERSONA -> CONTRAENTE
+        nome_raw = anello.get('nome', '') # es. "PERSONA 0"
+        if "PERSONA 0" in nome_raw:
+            final_name = "CONTRAENTE A"
+        elif "PERSONA 1" in nome_raw:
+            final_name = "CONTRAENTE B"
+        else:
+            final_name = nome_raw
+
         pdf.cell(
             0,
             10,
-            f"NOTA CRITICA: Instabilità in {anello.get('nome')} ({anello.get('motivo')})"
+            f"{final_name}"
         )
         pdf.set_text_color(0, 0, 0)    # torniamo al nero
 
