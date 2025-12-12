@@ -131,8 +131,8 @@ def _generate_png(val_gsr, val_compat, output_path):
     # Nascondiamo gli assi (vogliamo solo la curva)
     ax.axis('off')
 
-    # Disegniamo la curva: qui è rossa e un po’ spessa
-    plt.plot(x, y, color='red', linewidth=3)
+    # Disegniamo la curva:
+    plt.plot(x, y, color='black', linewidth=3)
 
     # Rimuoviamo margini: la curva occupa tutto lo spazio disponibile
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
@@ -140,8 +140,8 @@ def _generate_png(val_gsr, val_compat, output_path):
     # 3. SALVATAGGIO DEL PNG
     try:
         # transparent=True → sfondo trasparente (ottimo per sovrapporlo nel layout)
-        # bbox_inches='tight', pad_inches=0.1 → facciamo in modo che i bordi siano stretti
-        plt.savefig(output_path, transparent=True, bbox_inches='tight', pad_inches=0.1)
+        # transparent=True → sfondo trasparente (ottimo per sovrapporlo nel layout)
+        plt.savefig(output_path, transparent=True)
         plt.close()
     except Exception as e:
         print(f"[LISSAJOUS] Errore salvataggio PNG: {e}")
