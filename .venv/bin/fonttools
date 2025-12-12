@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' "/Users/camilla/Desktop/III anno I semestre /LAB sintesi/ALUA-PYTHON/.venv/bin/python3" "$0" "$@"
+'''exec' "/Volumes/Install macOS Sequoia/ALUA-PYTHON/.venv/bin/python3" "$0" "$@"
 ' '''
 import sys
 from fontTools.__main__ import main

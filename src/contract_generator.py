@@ -84,6 +84,7 @@ def genera_testo_clausole(tipi_attivi):
     }
 
     # Costruiamo la frase concatenando i pezzi corrispondenti ai tipi attivi
+    testo = ""
     for t in tipi_attivi:
         testo += mapping.get(t, "") + " "
     
@@ -128,11 +129,13 @@ def genera_pdf_contratto_A4(dati):
     
     # 2. Font
     # Proviamo a usare il font custom; se fallisce, ripieghiamo su Courier
+    font_ok = False
     if os.path.exists(font_path):
         try:
             # In FPDF2 serve il parametro fname per i font custom
             pdf.add_font(family='BergenMono', style='', fname=font_path)
             pdf.set_font('BergenMono', '', 12)
+            font_ok = True
         except Exception as e:
             print(f"[WARNING] Errore caricamento font BergenMono: {e}")
             pdf.set_font('Courier', '', 12)
@@ -177,6 +180,10 @@ def genera_pdf_contratto_A4(dati):
     # B3. RISK LABEL & PRICE
     risk_label = elaborati.get('risk_label', "")
     risk_price = elaborati.get('risk_price', "")
+    
+    # Se il font custom non è caricato, sostituiamo caratteri non-Latin-1 (es. €)
+    if not font_ok and risk_price:
+        risk_price = risk_price.replace("€", " EUR")
     
     if risk_label:
         c = LAYOUT['RiskLabel']
