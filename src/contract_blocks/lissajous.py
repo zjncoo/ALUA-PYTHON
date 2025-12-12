@@ -2,11 +2,26 @@ import math
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+import os
+import json
 
 # Usiamo il backend 'Agg' per Matplotlib.
 # Questo permette di generare immagini (PNG) anche in ambienti senza interfaccia grafica
 # (es. server, script da terminale, nessuna finestra aperta).
 matplotlib.use('Agg')
+
+def load_data_from_jsonl(filename):
+    data_list = []
+    if not os.path.exists(filename):
+        return []
+    with open(filename, 'r') as f:
+        for line in f:
+            if line.strip():
+                try:
+                    data_list.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    return data_list
 
 # Calcola i parametri condivisi (val_gsr, val_compat) a partire dai dati grezzi.
 def _calculate_params(data_history):
@@ -204,10 +219,10 @@ def _generate_svg(val_gsr, val_compat, output_path):
         print(f"[LISSAJOUS] Errore salvataggio SVG: {e}")
 
 
-def generate_lissajous(data_history, output_path):
+def generate_lissajous(data_history_ignored, output_path):
     """
     Funzione pubblica principale.
-    - Calcola i parametri partendo da data_history.
+    - Calcola i parametri partendo da data/arduino_data.jsonl.
     - Genera:
         1) un file SVG (vettoriale) della figura di Lissajous
         2) un file PNG (raster) della stessa figura, per compatibilità con il PDF.
@@ -223,13 +238,31 @@ def generate_lissajous(data_history, output_path):
     # Da questo PNG deduciamo automaticamente il path dell'SVG corrispondente.
     svg_path = output_path.replace('.png', '.svg')
 
-    # 2. CALCOLO DEI PARAMETRI (GSR, COMPATIBILITÀ)
-    val_gsr, val_compat = _calculate_params(data_history)
+    # 2. CARICAMENTO DATI
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base_dir, "../../data/arduino_data.jsonl")
+    data_list = load_data_from_jsonl(data_path)
 
-    # 3. GENERAZIONE SVG (OUTPUT VETTORIALE)
+    # Convertiamo nel formato atteso da _calculate_params
+    # _calculate_params si aspetta una lista di tuple o liste [SCL0, SCL1] oppure [Time, SCL0, SCL1]
+    # oppure semplicemente SCL0, SCL1 se idx_start è gestito.
+    # Costruiamo una lista semplice [[SCL0, SCL1], [SCL0, SCL1], ...]
+    
+    new_history = []
+    for item in data_list:
+        scl0 = item.get("SCL0", 0)
+        scl1 = item.get("SCL1", 0)
+        # La logica di _calculate_params è un po' complessa sulla detection delle colonne.
+        # Semplifichiamola passandogli dati puliti [[SCL0, SCL1], ...]
+        new_history.append([scl0, scl1])
+
+    # 3. CALCOLO DEI PARAMETRI (GSR, COMPATIBILITÀ)
+    val_gsr, val_compat = _calculate_params(new_history)
+
+    # 4. GENERAZIONE SVG (OUTPUT VETTORIALE)
     _generate_svg(val_gsr, val_compat, svg_path)
 
-    # 4. GENERAZIONE PNG (OUTPUT RASTER PER PDF)
+    # 5. GENERAZIONE PNG (OUTPUT RASTER PER PDF)
     _generate_png(val_gsr, val_compat, output_path)
     
     # Ritorniamo il percorso del PNG, che è quello che userà tipicamente il PDF.

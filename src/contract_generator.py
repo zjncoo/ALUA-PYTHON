@@ -57,7 +57,7 @@ LAYOUT = {
     'Nota_Rossa': { 'x': 260, 'y': 2950, 'font_size': 9 },
 
     # 9. GRAFICO CONDUTTANZA
-    'Graph': { 'x': 281, 'y': 1439, 'w': 817, 'h': 315 } 
+    'Graph': { 'x': 207, 'y': 1446, 'w': 765, 'h': 315 } 
 }
 
 # HELPER PER TESTO CLAUSOLE

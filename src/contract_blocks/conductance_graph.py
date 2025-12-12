@@ -1,138 +1,85 @@
+import json
+import os
 import matplotlib.pyplot as plt
 import matplotlib
 from scipy.ndimage import gaussian_filter1d
 
 # Usiamo il backend 'Agg' per poter generare immagini anche senza interfaccia grafica
-# (ad esempio in ambienti server o script eseguiti da riga di comando).
 matplotlib.use('Agg')
 
+def load_data_from_jsonl(filename):
+    data_list = []
+    if not os.path.exists(filename):
+        return []
+    with open(filename, 'r') as f:
+        for line in f:
+            if line.strip():
+                try:
+                    data_list.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    return data_list
 
-def genera_grafico_conduttanza(storico_dati, output_path="temp_conductance.png"):
+def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductance.png"):
     """
-    Genera un grafico di "conduttanza" per due contraenti nel tempo.
-    Il grafico risultante ha dimensioni fisse in pixel (2070x294), sfondo trasparente
-    e viene salvato come file PNG.
+    Genera un grafico di "conduttanza" leggendo direttamente da data/arduino_data.jsonl.
+    Il grafico è puramente estetico: niente assi, niente etichette, solo le curve.
+    Dimensioni: 2070x294 pixel.
     """
 
-    # 1. CONFIGURAZIONE DIMENSIONI PRECIsE (PIXEL → POLLICI)
-    # Target di esportazione: 2070x294 pixel.
-    # Matplotlib ragiona in pollici; perciò convertiamo:
-    #    px = inches * dpi   ⇔   inches = px / dpi
-    W_PX = 2070  # larghezza in pixel
-    H_PX = 294   # altezza in pixel
-    DPI = 100    # densità (dots per inch)
-    figsize_inches = (W_PX / DPI, H_PX / DPI)  # (larghezza, altezza) in pollici
+    # 1. CARICAMENTO DATI DAL FILE JSONL
+    # Il percorso è relativo a questo file: ../../data/arduino_data.jsonl
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base_dir, "../../data/arduino_data.jsonl")
+    
+    data_list = load_data_from_jsonl(data_path)
 
-    # 2. CONTROLLO DATI IN INGRESSO
-    # Se la lista è vuota o ha meno di 2 punti, non ha senso fare una curva.
-    # In quel caso ritorniamo semplicemente il path senza generare nulla.
-    if not storico_dati or len(storico_dati) < 2:
+    # 2. ESTRAZIONE SERIE STORICHE SCL0 e SCL1
+    vals_a = [] # SCL0
+    vals_b = [] # SCL1
+    
+    for item in data_list:
+        # Prende 0 se la chiave non esiste
+        vals_a.append(item.get("SCL0", 0))
+        vals_b.append(item.get("SCL1", 0))
+
+    # Controllo se abbiamo dati sufficienti
+    if not vals_a or len(vals_a) < 2:
+        # Se non ci sono dati, non generiamo nulla o generiamo un'immagine vuota/trasparente?
+        # Per ora ritorniamo senza creare file (o lasciando quello vecchio)
         return output_path
 
-    # 3. PREPARAZIONE DEI DATI
-    # storico_dati è una lista di coppie: (valore_contraente_A, valore_contraente_B)
-    # Separiamo i valori in due liste distinte.
-    vals_a = [x[0] for x in storico_dati]  # serie di A
-    vals_b = [x[1] for x in storico_dati]  # serie di B
-    tempo = range(len(storico_dati))       # asse X: indice temporale
+    tempo = range(len(vals_a))
 
-    # 4. SMOOTHING DELLE CURVE
-    # Usiamo un filtro gaussiano monodimensionale per rendere le curve più morbide.
-    # sigma=6 controlla quanto "smussiamo" le variazioni.
+    # 3. CONFIGURAZIONE DIMENSIONI (2070x294 px)
+    W_PX = 2070
+    H_PX = 294
+    DPI = 100
+    figsize_inches = (W_PX / DPI, H_PX / DPI)
+
+    # 4. SMOOTHING
     vals_a_smooth = gaussian_filter1d(vals_a, sigma=6)
     vals_b_smooth = gaussian_filter1d(vals_b, sigma=6)
 
-    # 5. CREAZIONE DELLA FIGURA CON DIMENSIONI FISSE
-    # figsize=... assicura il rapporto dimensionale; dpi=100 per arrivare ai pixel desiderati
+    # 5. CREAZIONE FIGURA
     fig = plt.figure(figsize=figsize_inches, dpi=DPI)
-    ax = plt.gca()  # otteniamo l'axes corrente per modificare aspetto degli assi
+    ax = plt.gca()
 
-    # 6. STILE DEGLI ASSI (SPINES)
-    # Nascondiamo i bordi superiore e destro per un look più pulito.
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    # 6. RIMUZIONE TOTALE DI ASSI E BORDI E ETICHETTE
+    plt.axis('off') # Nasconde assi, etichette, tick, e bordi in un colpo solo
 
-    # Lasciamo visibili il bordo inferiore e sinistro, ma ne regoliamo spessore e colore.
-    ax.spines['bottom'].set_linewidth(1.0)
-    ax.spines['bottom'].set_color('black')
-    ax.spines['left'].set_linewidth(1.0)
-    ax.spines['left'].set_color('black')
+    # 7. PLOTTING
+    plt.plot(tempo, vals_a_smooth, color='black', linewidth=1.8)
+    # Contraente B: linea tratteggiata
+    plt.plot(tempo, vals_b_smooth, color='black', linewidth=1.2, linestyle='--')
 
-    # 7. PLOTTING DELLE DUE SERIE
-    # Contraente A: linea continua più spessa
-    plt.plot(
-        tempo,
-        vals_a_smooth,
-        color='black',
-        linewidth=1.8,
-        label='Contraente A'
-    )
+    # 8. MARGINI
+    # Vogliamo occupare tutto lo spazio o lasciare un margine? 
+    # Manteniamo un piccolo margine per non tagliare lo spessore della linea
+    plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
 
-    # Contraente B: linea tratteggiata leggermente più sottile
-    plt.plot(
-        tempo,
-        vals_b_smooth,
-        color='black',
-        linewidth=1.2,
-        linestyle='--',
-        label='Contraente B'
-    )
-
-    # 8. PALLINO NERO IN (0, 0)
-    # clip_on=False serve per non tagliare il pallino se è esattamente sul bordo.
-    plt.plot(
-        0,
-        0,
-        marker='o',
-        color='black',
-        markersize=5,
-        clip_on=False,
-        zorder=10  # zorder alto per disegnarlo sopra le altre linee
-    )
-
-    # 9. RANGE ASSI E TICKS
-    # Fissiamo i limiti degli assi per avere sempre la stessa "finestra":
-    # - asse X: da 0 a 60 (es. 60 unità di tempo)
-    # - asse Y: da 0 a 400 (range dei valori SCL)
-    plt.xlim(0, 60)
-    plt.ylim(0, 400) #VALORE DA VALUTARE!!!!!!!!!!!!!!!!
-    
-    # Rimuoviamo i numeri sugli assi (ticks), ma manteniamo le linee degli assi.
-   # Di default matplotlib MOSTRA i numeri !!!!!!
-    plt.xticks([])  # niente etichette sull'asse X
-    plt.yticks([])  # niente etichette sull'asse Y
-
-    # 10. ETICHETTE E LEGENDA
-    # Label degli assi con font monospazio, per coerenza con il resto del progetto.
-    plt.ylabel('GSR', fontsize=9, fontname='monospace', labelpad=5)
-    plt.xlabel('Tempo', fontsize=9, fontname='monospace', loc='right', labelpad=5)
-
-    # Legenda posizionata sopra il grafico, centrata, senza bordo.
-    plt.legend(
-        loc='upper center',        # posizione logica
-        bbox_to_anchor=(0.5, 1.25),# coordinata relativa (x,y) rispetto all'axes
-        ncol=2,                    # due colonne: A e B affiancati
-        frameon=False,             # niente box attorno alla legenda
-        prop={'family': 'monospace', 'size': 9}
-    )
-
-    # 11. MARGINI MANUALI
-    # Regoliamo i margini (left, right, top, bottom) per:
-    # - evitare che il contenuto venga tagliato
-    # - occupare bene l'area 2070x294px
-    plt.subplots_adjust(
-        left=0.03,
-        right=0.96,
-        top=0.75,
-        bottom=0.15
-    )
-
-    # 12. SALVATAGGIO DELL'IMMAGINE
-    # transparent=True → permette di avere sfondo trasparente (utile per overlay su layout).
+    # 9. SALVATAGGIO
     plt.savefig(output_path, transparent=True, dpi=DPI)
-
-    # Chiudiamo la figura per liberare memoria (buona pratica in script che generano molte immagini).
     plt.close()
-    
-    # Ritorniamo il path del file creato, in modo che il chiamante sappia dove trovarlo.
+
     return output_path
