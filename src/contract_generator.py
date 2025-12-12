@@ -32,7 +32,7 @@ def py(pixel_value):
 # Le coordinate sono prese direttamente dal file template.
 LAYOUT = {
     # 1. EMBLEMA GRAFICO (Lissajous)
-    'Lissajous': { 'x': 290, 'y': 2107, 'w': 350, 'h': 350 },
+    'Lissajous': { 'x': 291, 'y': 2108, 'w': 350, 'h': 350 },
 
     # 2. PERCENTUALE (solo testo numerico)
     'Percentuale': { 'x': 1135, 'y': 771, 'font_size': 100 },
@@ -63,18 +63,15 @@ LAYOUT = {
     'Fascia': { 'x': 1988, 'y': 2043, 'font_size': 12 },
 
     # 11. LABEL RISCHIO E PREZZO
-    'RiskLabel': { 'x': 1988, 'y': 2100, 'font_size': 10 }, # Coordinate stimate
-    'RiskPrice': { 'x': 1988, 'y': 2150, 'font_size': 10 }  # Coordinate stimate
+    'RiskLabel': { 'x': 1845, 'y': 2232, 'w': 387, 'font_size': 12 },
+    'RiskPrice': { 'x': 1936, 'y': 2612, 'w': 197, 'font_size': 20 }
 }
 
 # HELPER PER TESTO CLAUSOLE
 def genera_testo_clausole(tipi_attivi):
 
     #Genera il testo descrittivo delle clausole in base ai "tipi di relazione" attivi.
-    if not tipi_attivi:
-        # Se non arriva nessun tipo, usiamo una clausola di default
-        return "Clausola Default: Relazione indefinita. Si accetta l'ambiguità."  
-    testo = "LE PARTI CONCORDANO: "
+    
     
     # Frasi associate a ciascun tipo di relazione
     mapping = {
@@ -185,13 +182,13 @@ def genera_pdf_contratto_A4(dati):
         c = LAYOUT['RiskLabel']
         pdf.set_font_size(c['font_size'])
         pdf.set_xy(px(c['x']), py(c['y']))
-        pdf.cell(px(100), py(20), txt=f"{risk_label}", align='C')
+        pdf.cell(px(c['w']), py(20), txt=f"{risk_label}", align='C')
 
     if risk_price:
         c = LAYOUT['RiskPrice']
         pdf.set_font_size(c['font_size'])
         pdf.set_xy(px(c['x']), py(c['y']))
-        pdf.cell(px(100), py(20), txt=f"{risk_price}", align='C')
+        pdf.cell(px(c['w']), py(20), txt=f"{risk_price}", align='C')
 
     # C. QR CODE
     path_qr = assets.get('qr_code')
