@@ -54,13 +54,17 @@ LAYOUT = {
     'Clausole': { 'x': 260, 'y': 2600, 'w_text': 1400, 'font_size': 10 },
 
     # 8. NOTA ROSSA (Anello debole / criticità)
-    'Nota_Rossa': { 'x': 1245, 'y': 2397, 'font_size': 20 },
+    'Nota_Rossa': { 'x': 1852, 'y': 2366, 'w': 361, 'font_size': 12 },
 
     # 9. GRAFICO CONDUTTANZA
     'Graph': { 'x': 207, 'y': 1443, 'w': 2155, 'h': 322 },
 
     # 10. FASCIA DI RISCHIO 
-    'Fascia': { 'x': 1255, 'y': 1944, 'font_size': 30 }
+    'Fascia': { 'x': 1988, 'y': 2043, 'font_size': 12 },
+
+    # 11. LABEL RISCHIO E PREZZO
+    'RiskLabel': { 'x': 1988, 'y': 2100, 'font_size': 10 }, # Coordinate stimate
+    'RiskPrice': { 'x': 1988, 'y': 2150, 'font_size': 10 }  # Coordinate stimate
 }
 
 # HELPER PER TESTO CLAUSOLE
@@ -163,11 +167,31 @@ def genera_pdf_contratto_A4(dati):
     pdf.cell(px(200), py(50), txt=f"{compat}", align='C')
 
     # B2. FASCIA DI RISCHIO
-    fascia = elaborati.get('fascia')
+    fascia = elaborati.get('fascia', 4)
+    # Conversione in numeri romani
+    roman_map = {1: "I", 2: "II", 3: "III", 4: "IV"}
+    fascia_str = roman_map.get(fascia, str(fascia))
+    
     c = LAYOUT['Fascia']
     pdf.set_font_size(c['font_size'])
     pdf.set_xy(px(c['x']), py(c['y']))
-    pdf.cell(px(100), py(30), txt=f"{fascia}", align='C')
+    pdf.cell(px(100), py(30), txt=f"{fascia_str}", align='C')
+
+    # B3. RISK LABEL & PRICE
+    risk_label = elaborati.get('risk_label', "")
+    risk_price = elaborati.get('risk_price', "")
+    
+    if risk_label:
+        c = LAYOUT['RiskLabel']
+        pdf.set_font_size(c['font_size'])
+        pdf.set_xy(px(c['x']), py(c['y']))
+        pdf.cell(px(100), py(20), txt=f"{risk_label}", align='C')
+
+    if risk_price:
+        c = LAYOUT['RiskPrice']
+        pdf.set_font_size(c['font_size'])
+        pdf.set_xy(px(c['x']), py(c['y']))
+        pdf.cell(px(100), py(20), txt=f"{risk_price}", align='C')
 
     # C. QR CODE
     path_qr = assets.get('qr_code')
@@ -252,7 +276,9 @@ def genera_pdf_contratto_A4(dati):
     # H. NOTA ROSSA (ANELLO DEBOLE / INSTABILITÀ)
     anello = elaborati.get('anello_debole', {})
     # Se esiste un "colpevole" (id diverso da -1), mostriamo la nota critica
-    if anello.get('id_colpevole', -1) != -1:
+    # Se esiste un "colpevole" (id diverso da -1), mostriamo la nota critica
+    # O se è NESSUNO, lo mostriamo comunque come richiesto.
+    if True:
         c = LAYOUT['Nota_Rossa']
         pdf.set_font_size(c['font_size'])
         pdf.set_text_color(200, 0, 0)  # rosso
@@ -267,9 +293,10 @@ def genera_pdf_contratto_A4(dati):
             final_name = nome_raw
 
         pdf.cell(
-            0,
+            px(c['w']),
             10,
-            f"{final_name}"
+            f"{final_name}",
+            align='C'
         )
         pdf.set_text_color(0, 0, 0)    # torniamo al nero
 
