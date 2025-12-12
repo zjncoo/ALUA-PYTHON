@@ -60,7 +60,7 @@ LAYOUT = {
     'Graph': { 'x': 207, 'y': 1446, 'w': 765, 'h': 315 },
 
     # 10. FASCIA DI RISCHIO 
-    'Fascia': { 'x': 2250, 'y': 170, 'font_size': 30 }
+    'Fascia': { 'x': 1255, 'y': 1944, 'font_size': 30 }
 }
 
 # HELPER PER TESTO CLAUSOLE
