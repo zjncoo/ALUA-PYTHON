@@ -57,7 +57,10 @@ LAYOUT = {
     'Nota_Rossa': { 'x': 1245, 'y': 2397, 'font_size': 20 },
 
     # 9. GRAFICO CONDUTTANZA
-    'Graph': { 'x': 207, 'y': 1446, 'w': 765, 'h': 315 } 
+    'Graph': { 'x': 207, 'y': 1446, 'w': 765, 'h': 315 },
+
+    # 10. FASCIA DI RISCHIO 
+    'Fascia': { 'x': 2250, 'y': 170, 'font_size': 30 }
 }
 
 # HELPER PER TESTO CLAUSOLE
@@ -158,6 +161,13 @@ def genera_pdf_contratto_A4(dati):
     pdf.set_xy(px(c['x']), py(c['y']))
     # La cella contiene solo il numero, centrato
     pdf.cell(px(200), py(50), txt=f"{compat}", align='C')
+
+    # B2. FASCIA DI RISCHIO
+    fascia = elaborati.get('fascia')
+    c = LAYOUT['Fascia']
+    pdf.set_font_size(c['font_size'])
+    pdf.set_xy(px(c['x']), py(c['y']))
+    pdf.cell(px(100), py(30), txt=f"{fascia}", align='C')
 
     # C. QR CODE
     path_qr = assets.get('qr_code')
