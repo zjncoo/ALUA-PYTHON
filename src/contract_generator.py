@@ -54,7 +54,7 @@ LAYOUT = {
     'Clausole': { 'x': 260, 'y': 2600, 'w_text': 1400, 'font_size': 10 },
 
     # 8. NOTA ROSSA (Anello debole / criticità)
-    'Nota_Rossa': { 'x': 260, 'y': 2950, 'font_size': 9 },
+    'Nota_Rossa': { 'x': 1245, 'y': 2397, 'font_size': 20 },
 
     # 9. GRAFICO CONDUTTANZA
     'Graph': { 'x': 207, 'y': 1446, 'w': 765, 'h': 315 } 
