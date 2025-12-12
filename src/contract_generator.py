@@ -48,7 +48,7 @@ LAYOUT = {
     
     # 6. HEADER (Data e ID contratto)
     'Header_Data': { 'x': 65, 'y': 173 },
-    'Header_ID':   { 'x': 1650, 'y': 360 },
+    'Header_ID':   { 'x': 350, 'y': 87 },
 
     # 7. TESTO CLAUSOLE (blocco di testo lungo)
     'Clausole': { 'x': 260, 'y': 2600, 'w_text': 1400, 'font_size': 10 },
@@ -57,7 +57,7 @@ LAYOUT = {
     'Nota_Rossa': { 'x': 1245, 'y': 2397, 'font_size': 20 },
 
     # 9. GRAFICO CONDUTTANZA
-    'Graph': { 'x': 207, 'y': 1446, 'w': 765, 'h': 315 },
+    'Graph': { 'x': 207, 'y': 1443, 'w': 2155, 'h': 322 },
 
     # 10. FASCIA DI RISCHIO 
     'Fascia': { 'x': 1255, 'y': 1944, 'font_size': 30 }
@@ -206,8 +206,14 @@ def genera_pdf_contratto_A4(dati):
     # E. HEADER (ID CONTRATTO + DATA)
     pdf.set_font_size(10)
 
-    # ID univoco basato su data e ora
-    contract_id = datetime.now().strftime("%Y%m%d-%H%M")
+    # Identificativo Contratto (Usiamo quello generato in process_data e salvato in assets, se presente)
+    # Altrimenti fallback (safety)
+    contract_id = dati.get('assets', {}).get('contract_id')
+    if not contract_id:
+        contract_id = datetime.now().strftime("%Y%m%d-%H%M")
+    
+    output_filename = f"Contract_{contract_id}.pdf"
+    output_path = os.path.join(output_dir, output_filename)
     # Data
     c = LAYOUT['Header_Data']
     pdf.set_xy(px(c['x']), py(c['y']))
@@ -215,8 +221,11 @@ def genera_pdf_contratto_A4(dati):
     
     # ID contratto
     c = LAYOUT['Header_ID']
+    pdf.set_font_size(8)
+    pdf.set_text_color(255, 255, 255) # Bianco
     pdf.set_xy(px(c['x']), py(c['y']))
-    pdf.cell(px(300), 10, f"ID: {contract_id}", ln=1, align='L')
+    pdf.cell(px(300), 4, f"{contract_id}", ln=1, align='L')
+    pdf.set_text_color(0, 0, 0) # Reset Nero
 
     # F. GRAFICO DELLA CONDUTTANZA
     path_graph = assets.get('graph')

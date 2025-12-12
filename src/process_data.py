@@ -3,6 +3,7 @@ import logging
 import random
 import os
 import sys
+import string
 from datetime import datetime
 import urllib.parse
 
@@ -411,6 +412,11 @@ def processa_dati(data_list):
 
 
 
+def generate_unique_id():
+    """Genera un ID univoco di 9 caratteri alfanumerici (es. Y7K9M2X1P)."""
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(chars, k=9))
+
 def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     """
     Genera gli asset grafici (Lissajous, QR, ecc.) usando la logica di CONTRACT.
@@ -521,21 +527,34 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     btns0_idxs = [str(i) for i, x in enumerate(buttons0) if x == 1]
     btns1_idxs = [str(i) for i, x in enumerate(buttons1) if x == 1]
     
+    # Identificazione univoca
+    # GENERIAMO QUI L'ID UNICO CHE VERRÀ USATO OVUNQUE (QR e PDF)
+    unified_id = generate_unique_id()
+    
+    # Recalculate scores locally to avoid modifying processa_dati
+    # This satisfies the requirement to keep the core logic untouched while providing requested params
+    arousal_data = elab.get("arousal", {})
+    score_scl = calcola_score_scl_da_arousal(arousal_data)
+    score_slider = calcola_score_slider(static_sample)
+
     params = {
-        'gsr0': last_scl0,
-        'gsr1': last_scl1,
+        'scl0': int(last_scl0),
+        'scl1': int(last_scl1),
         'sl0': slider0,
         'sl1': slider1,
+        'scl': f"{score_scl:.2f}",
+        'sli': f"{score_slider:.2f}",
         'comp': elab.get('compatibilita', 50),
         'btn0': ",".join(btns0_idxs),
         'btn1': ",".join(btns1_idxs),
         'bad': id_colp,
         'fascia': elab.get('fascia', 1),
-        'id': datetime.now().strftime("%Y%m%d%H%M")
+        'id': unified_id
     }
     base_url = "https://alua-gamma.vercel.app/"
     link_completo = base_url + "?" + urllib.parse.urlencode(params)
     assets["qr_link"] = link_completo
+    assets["contract_id"] = unified_id  # Salviamo l'ID negli asset per passarlo al PDF
     
     path_qr = os.path.join(output_dir, "temp_qr.png")
     try:

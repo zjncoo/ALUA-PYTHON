@@ -51,35 +51,70 @@ def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductan
 
     tempo = range(len(vals_a))
 
-    # 3. CONFIGURAZIONE DIMENSIONI (2070x294 px)
-    W_PX = 2070
-    H_PX = 294
+    # 3. CONFIGURAZIONE DIMENSIONI (2155x322 px)
+    W_PX = 2155
+    H_PX = 322
     DPI = 100
     figsize_inches = (W_PX / DPI, H_PX / DPI)
 
-    # 4. SMOOTHING
+    # 4. SMOOTHING E CALCOLO MAX
     vals_a_smooth = gaussian_filter1d(vals_a, sigma=6)
     vals_b_smooth = gaussian_filter1d(vals_b, sigma=6)
+    
+    # Calcolo valore massimo per l'asse Y (per visualizzazione dinamica)
+    max_val = max(max(vals_a_smooth), max(vals_b_smooth))
+    # Aggiungiamo un leggero padding sopra
+    y_lim_top = max_val * 1.1
 
     # 5. CREAZIONE FIGURA
-    fig = plt.figure(figsize=figsize_inches, dpi=DPI)
+    # frameon=False rimuove il rettangolo di sfondo della figura
+    fig = plt.figure(figsize=figsize_inches, dpi=DPI, frameon=False)
     ax = plt.gca()
+    
+    # Rimuoviamo il frame dell'asse
+    ax.set_frame_on(False)
 
     # 6. RIMUZIONE TOTALE DI ASSI E BORDI E ETICHETTE
     plt.axis('off') # Nasconde assi, etichette, tick, e bordi in un colpo solo
+    
+    # Impostiamo limite Y esplicito
+    ax.set_ylim(0, y_lim_top)
+    # Impostiamo limite X esplicito (tempo)
+    ax.set_xlim(0, len(tempo))
 
     # 7. PLOTTING
-    plt.plot(tempo, vals_a_smooth, color='black', linewidth=1.8)
-    # Contraente B: linea tratteggiata
-    plt.plot(tempo, vals_b_smooth, color='black', linewidth=1.2, linestyle='--')
+    # Contraente A: Linea solida molto più spessa
+    plt.plot(tempo, vals_a_smooth, color='black', linewidth=3.5, solid_capstyle='round')
+    
+    # Contraente B: Linea tratteggiata più spessa
+    # Ridotto a (7, 7) su richiesta utente (ancora più fitto)
+    plt.plot(tempo, vals_b_smooth, color='black', linewidth=3.0, linestyle='--', dashes=(7, 7), solid_capstyle='round')
 
-    # 8. MARGINI
-    # Vogliamo occupare tutto lo spazio o lasciare un margine? 
-    # Manteniamo un piccolo margine per non tagliare lo spessore della linea
-    plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+    # 9. MARGINI
+    # subplots_adjust per riempire la figura
+    # Lasciamo un margine sx per il testo se necessario, ma plt.axis('off') taglia tutto ciò che è fuori.
+    # Spostiamo il testo leggermente dentro il grafico: x = len(tempo) * 0.01
+    padding_x = len(tempo) * 0.005
+    
+    # 8. TESTO DINAMICO SULLE ORDINATE (MAX VAL)
+    plt.text(
+        padding_x, 
+        max_val, 
+        f"MAX: {int(max_val)}", 
+        fontsize=12, 
+        fontname='monospace',
+        fontweight='bold',
+        color='black',
+        ha='left', 
+        va='bottom'
+    )
 
-    # 9. SALVATAGGIO
-    plt.savefig(output_path, transparent=True, dpi=DPI)
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    # 10. SALVATAGGIO
+    # bbox_inches='tight', pad_inches=0 rimuove extra whitespace ma può alterare le dimensioni pixel esatte
+    # Usiamo transparent=True e dimensioni esatte della figure
+    plt.savefig(output_path, transparent=True, dpi=DPI, pad_inches=0)
     plt.close()
 
     return output_path
