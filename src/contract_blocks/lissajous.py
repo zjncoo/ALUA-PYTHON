@@ -24,7 +24,7 @@ in modo semiotico, per rappresentare visivamente la "forma" della relazione.
      - Alta compatibilità -> Forme armoniche, aperte ("tondeggianti").
      - Bassa compatibilità -> Forme più schiacciate o disarmoniche.
 
-Autore: Antigravity (Google Deepmind)
+
 """
 
 import math
