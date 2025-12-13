@@ -267,11 +267,13 @@
             font-family: 'Bergen Mono', monospace;
             padding: 1rem;
             transform: translateY(100%);
+            transition: transform 0.3s;
+        }
 
-            .terminal-overlay.open {
-                transform: translateY(0);
-                pointer-events: all;
-            }
+        .terminal-overlay.open {
+            transform: translateY(0);
+            pointer-events: all;
+        }
     </style>
 </head>
 
@@ -781,6 +783,12 @@
 
         function stopTimer() {
             clearInterval(timerInterval);
+        }
+
+        // --- INIT ---
+        function init() {
+            console.log("Initializing Dashboard...");
+            connectWs();
         }
 
         init();
