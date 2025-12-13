@@ -266,6 +266,60 @@ def genera_pdf_contratto_A4(dati):
             w=px(c['w']),
             h=py(c['h'])
         )
+    
+        # --- LABELING GRAFICO (MAX e MED) ---
+        # NOTE DI DESIGN:
+        # L'etichetta MAX deve essere posizionata a sinistra del grafico, esattamente a x=209 (coordinate layout).
+        # Il grafico conduttanza inizia a x=207.
+        # Le etichette sono allineate a destra (align='R') su x=209, quindi crescono verso sinistra nel margine bianco.
+        # Layout richiesto: 3 righe (Label, Valore, Unità) con interlinea ridotta.
+        
+        # LOGICA POSIZIONAMENTO Y:
+        # Il grafico conduttanza è generato con un padding superiore del 10% (ylim = max * 1.1).
+        # Pertanto il picco massimo visivo non tocca il bordo superiore dell'immagine, ma è al 90.9% dell'altezza (1.0/1.1).
+        # Calcoliamo le Y relative (in mm PDF) per allineare il testo esattamente all'altezza visiva del valore.
+        
+        # Recuperiamo il valore numerico
+        max_val_graph = assets.get('max_conductance', 0)
+        mid_val_graph = max_val_graph / 2.0
+        
+        # Fattore di scala usato in conductance_graph.py
+        scaling_factor = 1.1 
+        h_pdf = py(c['h']) # Altezza totale immagine in mm
+        
+        # Calcolo Offset Y per MAX (valore 1.0 su scala 1.1)
+        # Distanza dal TOP dell'immagine = 1 - (1.0 / 1.1) = ~0.0909
+        offset_pct_max = (scaling_factor - 1.0) / scaling_factor
+        y_max_label = py(c['y']) + (h_pdf * offset_pct_max)
+        
+        # Calcolo Offset Y per MED (valore 0.5 su scala 1.1)
+        # Distanza dal TOP = 1 - (0.5 / 1.1) = ~0.5454
+        offset_pct_mid = (scaling_factor - 0.5) / scaling_factor
+        y_mid_label = py(c['y']) + (h_pdf * offset_pct_mid)
+
+        # Configurazione Stile Testo
+        # Font size 7pt. Layout su 3 righe.
+        pdf.set_font_size(7)
+        cell_w = px(209) # La cella parte da 0 e finisce esattamente all'ancoraggio x=209
+        line_h = 2.5     # Altezza riga ridotta (2.5mm) per compattezza grafica
+        
+        # Offset correttivo Y:
+        # Il testo "MAX" è alto ~7.5mm (3 righe). Per centrarlo rispetto alla linea ideale del valore,
+        # lo spostiamo in su di circa metà altezza blocco (-4mm).
+        y_centering_offset = -4
+        
+        # --- DISEGNO MAX ---
+        pdf.set_xy(0, y_max_label + y_centering_offset) 
+        pdf.cell(cell_w, line_h, "MAX", border=0, align='R', ln=2)
+        pdf.cell(cell_w, line_h, f"{int(max_val_graph)}", border=0, align='R', ln=2)
+        pdf.cell(cell_w, line_h, "umhos", border=0, align='R')
+        
+        # --- DISEGNO MED ---
+        pdf.set_xy(0, y_mid_label + y_centering_offset)
+        pdf.cell(cell_w, line_h, "MED", border=0, align='R', ln=2)
+        pdf.cell(cell_w, line_h, f"{int(mid_val_graph)}", border=0, align='R', ln=2)
+        pdf.cell(cell_w, line_h, "umhos", border=0, align='R')
+
 
     # G. CLAUSOLE TESTUALI
     c = LAYOUT['Clausole']

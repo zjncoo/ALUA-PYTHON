@@ -519,8 +519,10 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     # C. Grafico Conduttanza
     path_graph = os.path.join(output_dir, "temp_graph.png")
     try:
-        conductance_graph.genera_grafico_conduttanza(storico_tuple, path_graph)
+        # Ora la funzione ritorna (path, max_val)
+        _, max_val_graph = conductance_graph.genera_grafico_conduttanza(storico_tuple, path_graph)
         assets["graph"] = path_graph
+        assets["max_conductance"] = max_val_graph
     except Exception as e:
         log.error(f"Errore Graph: {e}")
 

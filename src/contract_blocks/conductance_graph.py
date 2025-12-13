@@ -90,31 +90,16 @@ def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductan
     # Ridotto a (7, 7) su richiesta utente (ancora più fitto)
     plt.plot(tempo, vals_b_smooth, color='black', linewidth=3.0, linestyle='--', dashes=(7, 7), solid_capstyle='round')
 
-    # 9. MARGINI
-    # subplots_adjust per riempire la figura
-    # Lasciamo un margine sx per il testo se necessario, ma plt.axis('off') taglia tutto ciò che è fuori.
-    # Spostiamo il testo leggermente dentro il grafico: x = len(tempo) * 0.01
-    padding_x = len(tempo) * 0.005
-    
-    # 8. TESTO DINAMICO SULLE ORDINATE (MAX VAL)
-    plt.text(
-        padding_x, 
-        max_val, 
-        f"MAX: {int(max_val)}", 
-        fontsize=12, 
-        fontname='monospace',
-        fontweight='bold',
-        color='black',
-        ha='left', 
-        va='bottom'
-    )
-
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
     # 10. SALVATAGGIO
     # bbox_inches='tight', pad_inches=0 rimuove extra whitespace ma può alterare le dimensioni pixel esatte
-    # Usiamo transparent=True e dimensioni esatte della figure
+    # Usiamo transparent=True e dimensioni esatte della figure.
+    # NOTA: Qui non disegnamo più il testo "MAX" con matplotlib perché verrebbe tagliato
+    # se posizionato fuori dagli assi (clip_on=False non basta se il margine è 0).
+    # Il testo viene aggiunto successivamente da FPDF nel `contract_generator.py` per un posizionamento pixel-perfect.
     plt.savefig(output_path, transparent=True, dpi=DPI, pad_inches=0)
     plt.close()
 
-    return output_path
+    # Ritorniamo anche il valore massimo per permettere al generatore PDF di scrivere l'etichetta
+    return output_path, max_val
