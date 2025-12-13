@@ -8,6 +8,7 @@ Questo file si occupa SOLO dell'assemblaggio grafico:
 - prende gli asset già generati (immagini, grafico, QR, ecc.)
 - li posiziona sul template alle coordinate giuste
 - aggiunge testi (percentuale, clausole, note, ecc.)
+- [NEW] evidenzia dinamicamente la fascia di rischio calcolata.
 """
 
 # CONFIGURAZIONE LAYOUT (IN PIXEL DA PHOTOSHOP)
@@ -196,6 +197,68 @@ def genera_pdf_contratto_A4(dati):
         pdf.set_font_size(c['font_size'])
         pdf.set_xy(px(c['x']), py(c['y']))
         pdf.cell(px(c['w']), py(20), txt=f"{risk_price}", align='C')
+
+    # =================================================================================
+    # B4. EVIDENZIATORE DINAMICO FASCIA DI RISCHIO (RISK HIGHLIGHT BOX)
+    # =================================================================================
+    # Questo blocco di codice si occupa di disegnare un rettangolo di evidenziazione
+    # attorno alla "Fascia di Rischio" corretta sul modulo del contratto.
+    #
+    # LOGICA DI POSIZIONAMENTO:
+    # L'area delle fasce di rischio è un blocco verticale diviso in 4 sezioni uguali.
+    # - Fascia 1 (Minimo)       : Sezione in ALTO
+    # - Fascia 2 (Moderato)     : Sezione MEDIO-ALTA
+    # - Fascia 3 (Significativo): Sezione MEDIO-BASSA
+    # - Fascia 4 (Catastrofico) : Sezione in BASSO
+    #
+    # COORDINATE (sistema di riferimento layout PSD 2481x3508):
+    # - X Iniziale      : 855 px (Allineato a sinistra del testo fascia)
+    # - Y Iniziale      : 2008 px (Inizio della fascia 1)
+    # - Larghezza (W)   : 793 px
+    # - Altezza Totale  : 702 px
+    # - Altezza Slot    : 175.5 px (702 / 4)
+    #
+    # STILE GRAFICO:
+    # - Colore: Nero (RGB 0,0,0)
+    # - Spessore linea: 5 px (calibrato per matchare la linea del grafico conduttanza ~0.42mm)
+    # - Riempimento: Nessuno (Trasparente)
+    # ---------------------------------------------------------------------------------
+    
+    # Coordinate base definite
+    risk_box_x = 855
+    risk_box_start_y = 2008
+    risk_box_w = 793
+    risk_box_h_total = 702
+    risk_box_h_slot = risk_box_h_total / 4.0
+
+    # Fascia è 1..4. Calcoliamo l'offset Y.
+    # Fascia 1 -> offset 0
+    # Fascia 2 -> offset 1 * 175.5
+    # ...
+    # Fascia 4 -> offset 3 * 175.5
+    if 1 <= fascia <= 4:
+        offset_idx = fascia - 1
+        current_y = risk_box_start_y + (offset_idx * risk_box_h_slot)
+        
+        # Impostiamo linea e colore
+        # Richiesto: "spessi come la riga nel grafico"
+        # Il grafico usa linewidth=3.5 a 100DPI -> ~4.86 px
+        # Arrotondiamo a 5 px del layout PSD.
+        pdf.set_line_width(px(5))
+        pdf.set_draw_color(0, 0, 0) # Nero
+        
+        # Disegno rettangolo (x, y, w, h)
+        # 'D' = Draw border only (no fill)
+        pdf.rect(
+            x=px(risk_box_x),
+            y=py(current_y),
+            w=px(risk_box_w),
+            h=py(risk_box_h_slot),
+            style='D'
+        )
+        # Ripristino default line width (opzionale, ma buona prassi)
+        pdf.set_line_width(0.2) # Default FPDF circa 0.2 mm
+
 
     # C. QR CODE
     path_qr = assets.get('qr_code')
