@@ -65,7 +65,10 @@ LAYOUT = {
 
     # 11. LABEL RISCHIO E PREZZO
     'RiskLabel': { 'x': 1845, 'y': 2232, 'w': 387, 'font_size': 12 },
-    'RiskPrice': { 'x': 1936, 'y': 2612, 'w': 197, 'font_size': 20 }
+    'RiskPrice': { 'x': 1936, 'y': 2612, 'w': 197, 'font_size': 20 },
+    # [NEW] Posizione della frase di rischio (Bottom-Left)
+    # Coordinate aggiornate su richiesta: x=124, y=2765
+    'RiskPhrase': { 'x': 124, 'y': 2765, 'w': 1902, 'font_size': 15 }
 }
 
 # HELPER PER TESTO CLAUSOLE
@@ -197,6 +200,27 @@ def genera_pdf_contratto_A4(dati):
         pdf.set_font_size(c['font_size'])
         pdf.set_xy(px(c['x']), py(c['y']))
         pdf.cell(px(c['w']), py(20), txt=f"{risk_price}", align='C')
+
+    # B4. RISK PHRASE (Testo descrittivo associato alla fascia)
+    # ---------------------------------------------------------------------------------
+    # [NEW FEATURE] RENDERING FRASE DI RISCHIO
+    # Questa sezione si occupa di stampare la frase descrittiva associata alla fascia di rischio.
+    # LOGICA:
+    # 1. Recupera la stringa 'risk_phrase' dal dizionario dati (popolato in process_data.py).
+    # 2. Configura il font a 15pt come richiesto.
+    # 3. Posiziona il cursore alle coordinate x=124, y=2765 (Bottom-Left).
+    # 4. Usa multi_cell per gestire il wrapping del testo su più righe se necessario.
+    # 5. Impone lo stile TUTTO MAIUSCOLO (.upper()) e un'interlinea ridotta (6mm).
+    # ---------------------------------------------------------------------------------
+    risk_phrase = elaborati.get('risk_phrase', "")
+    if risk_phrase:
+        c = LAYOUT['RiskPhrase']
+        pdf.set_font_size(c['font_size'])
+        pdf.set_xy(px(c['x']), py(c['y']))
+        # multi_cell per gestire testo lungo e wrapping
+        # Height 6mm per ridurre interlinea (font 15pt ~= 5.3mm)
+        # .upper() converte tutto in maiuscolo come richiesto
+        pdf.multi_cell(px(c['w']), 6, txt=f"{risk_phrase}".upper(), align='L')
 
     # =================================================================================
     # B4. EVIDENZIATORE DINAMICO FASCIA DI RISCHIO (RISK HIGHLIGHT BOX)

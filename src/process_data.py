@@ -48,11 +48,17 @@ THRESHOLD_REL_SCL      = 0.10  # 10% #da valutare
 
 # RISCHIO: MAPPING PREZZI E LABELS
 # 1 = MINIMO, 2 = MODERATO, 3 = SIGNIFICATIVO, 4 = CATASTROFICO
+#
+# [MODIFIED - NEW FEATURE: FRASI DI RISCHIO]
+# Oltre a label e prezzo, abbiamo aggiunto il campo "phrase".
+# Questo testo viene utilizzato per stampare una descrizione narrativa del rischio
+# sul PDF del contratto. (Vedi: contract_generator.py -> RiskPhrase)
+# Le frasi descrivono lo stato della relazione in base alla fascia calcolata.
 RISK_INFO = {
-    1: {"label": "MINIMO", "price": "250,00€"},
-    2: {"label": "MODERATO", "price": "500,00€"},
-    3: {"label": "SIGNIFICATIVO", "price": "750,00€"},
-    4: {"label": "CATASTROFICO", "price": "1.000,00€"}
+    1: {"label": "MINIMO", "price": "250,00€", "phrase": "Stabilità strutturale ottimale. Nessuna criticità rilevata."},
+    2: {"label": "MODERATO", "price": "500,00€", "phrase": "Lievi oscillazioni di coerenza. Si consiglia monitoraggio periodico."},
+    3: {"label": "SIGNIFICATIVO", "price": "750,00€", "phrase": "Turbolenze emotive marcate. Rischio di frattura del legame."},
+    4: {"label": "CATASTROFICO", "price": "1.000,00€", "phrase": "Incompatibilità radicale. Collasso sistemico imminente."}
 }
 SLIDER_MAX_RAW = 1023.0
 SLIDER_SCALE   = 100.0 / SLIDER_MAX_RAW   
@@ -647,6 +653,8 @@ def prepara_dati_per_contratto(data_list, result_pacchetto, assets):
             'fascia': elab.get('fascia', 4),
             'risk_label': RISK_INFO.get(elab.get('fascia', 4), {}).get('label', "CATASTROFICO"),
             'risk_price': RISK_INFO.get(elab.get('fascia', 4), {}).get('price', "1.000,00€"),
+            # [NEW] Estraiamo la frase associata alla fascia di rischio corrente
+            'risk_phrase': RISK_INFO.get(elab.get('fascia', 4), {}).get('phrase', ""),
             'anello_debole': elab.get('colpevole', {}), # mapping chiave
             'tipi_selezionati': mapped_types
         },
