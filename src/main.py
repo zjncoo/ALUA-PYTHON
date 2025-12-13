@@ -3,108 +3,318 @@ import time
 import os
 import signal
 import sys
+import json
+from threading import Thread
 
 # === CONFIGURAZIONE FILE AUDIO ===
-# Assicurati che i nomi corrispondano esattamente ai file nella cartella 'audio'
 AUDIO_FILES = {
-    "01": "../assets/audio/01_benvenuto.wav",
-    "02": "../assets/audio/02_slider.wav",
-    "03": "../assets/audio/03_mani_sensore.wav",
-    "04": "../assets/audio/04_occhi.wav",
-    "05": "../assets/audio/05_unire_mani.wav",
-    "06": "../assets/audio/06_start_timer.wav",
-    "07": "../assets/audio/07_stop_timer.wav"
+    "01": "../assets/audio/01.wav",
+    "02": "../assets/audio/02.wav",
+    "03": "../assets/audio/03.wav",
+    "04": "../assets/audio/04.wav",
+    "04.1": "../assets/audio/04.1.wav",
+    "05": "../assets/audio/05.wav",
+    "06": "../assets/audio/06.wav",
+    "06.1": "../assets/audio/06.1.wav",
+    "07": "../assets/audio/07.wav",
+    "08": "../assets/audio/08.wav",
+    "09": "../assets/audio/09.wav",
+    "10": "../assets/audio/10.wav",
+    "11": "../assets/audio/11.wav",
+    "12": "../assets/audio/12.wav",
+    "12.1": "../assets/audio/12.1.wav",
+    "13": "../assets/audio/13.wav",
+    "14": "../assets/audio/14.wav"
 }
 
 ARDUINO_SCRIPT = "monitor_arduino.py"
 DATA_FILE = "../data/arduino_data.jsonl"
 
-def play_audio(file_path):
-    """Riproduce un file audio usando il comando nativo 'afplay' (macOS) e attende la fine."""
-    print(f"🎵 Riproduzione: {file_path}...")
+# Variabili globali per il monitoraggio
+arduino_process = None
+phase2_start_time = None
+
+
+def play_audio(file_path, audio_name=""):
+    """Riproduce un file audio usando 'afplay' (macOS) e attende la fine."""
+    print(f"[AUDIO] Riproduzione audio {audio_name}: {file_path}...")
     try:
         subprocess.run(["afplay", file_path], check=True)
+        print(f"[OK] Audio {audio_name} completato")
     except subprocess.CalledProcessError as e:
-        print(f"❌ Errore riproduzione audio {file_path}: {e}")
+        print(f"[ERRORE] Riproduzione audio {file_path}: {e}")
     except FileNotFoundError:
-        print(f"❌ Errore: File audio non trovato: {file_path}")
+        print(f"[ERRORE] File audio non trovato: {file_path}")
+
 
 def clean_data_file():
     """Svuota il file dei dati all'inizio."""
-    print(f"🧹 Pulizia file dati: {DATA_FILE}...")
+    print(f"[CLEAN] Pulizia file dati: {DATA_FILE}...")
     with open(DATA_FILE, "w") as f:
-        pass # Apre e chiude subito per svuotare
+        pass  # Apre e chiude subito per svuotare
+
+
+def start_arduino_monitoring(phase_name=""):
+    """Avvia il processo di monitoraggio Arduino."""
+    global arduino_process
+    print(f"[START] Avvio {phase_name} monitoraggio dati ({ARDUINO_SCRIPT})...")
+    arduino_process = subprocess.Popen([sys.executable, "-u", ARDUINO_SCRIPT])
+    time.sleep(1)  # Attesa tecnica avvio
+    return arduino_process
+
+
+def stop_arduino_monitoring(phase_name=""):
+    """Termina il processo di monitoraggio Arduino."""
+    global arduino_process
+    if arduino_process:
+        print(f"[STOP] Stop {phase_name} monitoraggio dati...")
+        arduino_process.terminate()
+        arduino_process.wait()
+        arduino_process = None
+
+
+def check_contatto_trigger(timeout=5.0):
+    """
+    Monitora il file JSONL per rilevare un valore CONTATTO != 0 o un salto significativo.
+    Ritorna True se il trigger è attivato, False se scade il timeout.
+    
+    Strategia:
+    - Legge continuamente le ultime righe del file
+    - Cerca un valore CONTATTO > 0 o un salto significativo (es. >5)
+    - Se trova il trigger, ritorna True
+    - Se passa il timeout senza trovarlo, ritorna False
+    """
+    start_time = time.time()
+    last_contatto = 0
+    
+    print(f"[WATCH] Monitoraggio CONTATTO (timeout: {timeout}s)...")
+    
+    while (time.time() - start_time) < timeout:
+        try:
+            # Legge l'ultima riga valida del file
+            if os.path.exists(DATA_FILE):
+                with open(DATA_FILE, 'r') as f:
+                    lines = f.readlines()
+                    if lines:
+                        # Prendi l'ultima riga valida
+                        for line in reversed(lines):
+                            if line.strip():
+                                try:
+                                    data = json.loads(line)
+                                    contatto = data.get("CONTATTO", 0)
+                                    
+                                    # Condizione 1: valore diverso da 0
+                                    if contatto > 0:
+                                        print(f"[TRIGGER] RILEVATO! CONTATTO = {contatto}")
+                                        return True
+                                    
+                                    # Condizione 2: salto significativo (>5 rispetto all'ultimo)
+                                    if abs(contatto - last_contatto) > 5:
+                                        print(f"[TRIGGER] RILEVATO! Salto CONTATTO: {last_contatto} -> {contatto}")
+                                        return True
+                                    
+                                    last_contatto = contatto
+                                    break
+                                except json.JSONDecodeError:
+                                    continue
+        except Exception as e:
+            print(f"[WARN] Errore lettura file: {e}")
+        
+        time.sleep(0.1)  # Controlla ogni 100ms
+    
+    print(f"[TIMEOUT] Timeout trigger CONTATTO ({timeout}s) - Procedo comunque")
+    return False
+
 
 def main():
-    print("=== INIZIO COORDINAZIONE ESPERIENZA ===")
+    global phase2_start_time
     
-    # 0. Setup Percorsi (IMPORTANTE: Ci spostiamo nella cartella dello script)
+    print("\n" + "="*60)
+    print("=== INIZIO COORDINAZIONE ESPERIENZA ALUA ===")
+    print("="*60 + "\n")
+    
+    # 0. Setup Percorsi
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-    # 0. Pulizia Dati (SOLO QUI ALL'INIZIO)
+    
+    # 0. Pulizia Dati
     clean_data_file()
-
-    # 1. Audio 01
-    play_audio(AUDIO_FILES["01"])
-
-    # 2. Start Arduino Log + Audio 02
-    print(f"🚀 Avvio monitoraggio dati ({ARDUINO_SCRIPT})...")
-    # Usa sys.executable per essere sicuro di usare lo stesso python dell'ambiente virtuale
-    arduino_process = subprocess.Popen([sys.executable, "-u", ARDUINO_SCRIPT])
-    time.sleep(1) # Attesa tecnica avvio
     
-    play_audio(AUDIO_FILES["02"])
-
-    # 3. Pausa 15 secondi (modifica utente)
-    print("⏳ Attesa 15 secondi...")
-    time.sleep(15)
-
-    # === PAUSA MONITORAGGIO ===
-    print("⏸️  PAUSA monitoraggio dati (durante audio 03, 04, 05, 06)...")
-    arduino_process.terminate()
-    arduino_process.wait() # Ci assicuriamo che sia fermo
-
-    # 4. Sequenza Audio 03 -> 06
-    play_audio(AUDIO_FILES["03"])
-    play_audio(AUDIO_FILES["04"])
-    play_audio(AUDIO_FILES["05"])
-    play_audio(AUDIO_FILES["06"])
-
-    # === RIPRESA MONITORAGGIO ===
-    print(f"🚀 RIPRESA monitoraggio dati ({ARDUINO_SCRIPT})...")
-    arduino_process = subprocess.Popen([sys.executable, "-u", ARDUINO_SCRIPT])
+    # ========================================
+    # FASE PRE-MONITORAGGIO
+    # ========================================
+    
+    # Audio 01
+    play_audio(AUDIO_FILES["01"], "01")
     time.sleep(1)
-
-    # 5. Pausa 45 secondi e Stop Arduino finale
-    print("⏳ Attesa 45 secondi (Timer fase finale)...")
-    time.sleep(45)
     
-    print("🛑 Stop monitoraggio dati definitivo...")
-    arduino_process.terminate()
-
-    # 5. Elaborazione dati
-    print("\n--- Elaborazione dati... ---")
+    # Audio 02
+    play_audio(AUDIO_FILES["02"], "02")
+    time.sleep(1)
+    
+    # ========================================
+    # PRIMA FASE DI MONITORAGGIO
+    # ========================================
+    
+    # Audio 03 + Start Fase 1 Monitoraggio
+    play_audio(AUDIO_FILES["03"], "03")
+    
+    # Avvio prima fase di monitoraggio Arduino
+    start_arduino_monitoring("PRIMA FASE")
+    
+    # Dopo la fine di audio 03, aspetta 9 secondi
+    time.sleep(9)
+    
+    # Audio 04
+    play_audio(AUDIO_FILES["04"], "04")
+    time.sleep(3)
+    
+    # Audio 04.1
+    play_audio(AUDIO_FILES["04.1"], "04.1")
+    time.sleep(1)
+    
+    # Audio 05
+    play_audio(AUDIO_FILES["05"], "05")
+    time.sleep(5)
+    
+    # Audio 06
+    play_audio(AUDIO_FILES["06"], "06")
+    time.sleep(3)
+    
+    # Audio 06.1
+    play_audio(AUDIO_FILES["06.1"], "06.1")
+    
+    # Stop prima fase di monitoraggio
+    stop_arduino_monitoring("PRIMA FASE")
+    
+    # ========================================
+    # TRANSIZIONE
+    # ========================================
+    
+    time.sleep(1)
+    
+    # Audio 07
+    play_audio(AUDIO_FILES["07"], "07")
+    time.sleep(1)
+    
+    # Audio 08
+    play_audio(AUDIO_FILES["08"], "08")
+    time.sleep(2)
+    
+    # Audio 09
+    play_audio(AUDIO_FILES["09"], "09")
+    
+    # ========================================
+    # TRIGGER PER SECONDA FASE
+    # ========================================
+    
+    # Dopo audio 09, dobbiamo attendere il trigger o il timeout
+    # Prima aspetta 2 secondi come da specifiche
+    time.sleep(2)
+    
+    # Audio 10 (in parallelo al monitoraggio del trigger)
+    play_audio(AUDIO_FILES["10"], "10")
+    
+    # Ora inizia il monitoraggio del trigger CONTATTO
+    # Abbiamo due opzioni:
+    # 1. Trigger CONTATTO rilevato → parte subito seconda fase
+    # 2. Nessun trigger entro 5s dalla fine audio 10 → parte dopo 5s
+    
+    trigger_rilevato = check_contatto_trigger(timeout=5.0)
+    
+    if not trigger_rilevato:
+        # Piano B: sono passati già 5s nel check, quindi partiamo subito
+        print("[WARN] Nessun trigger rilevato, avvio seconda fase dopo timeout")
+    
+    # ========================================
+    # SECONDA FASE DI MONITORAGGIO (45 secondi)
+    # ========================================
+    
+    print("\n" + "="*60)
+    print("=== AVVIO SECONDA FASE MONITORAGGIO (45 secondi) ===")
+    print("="*60 + "\n")
+    
+    start_arduino_monitoring("SECONDA FASE")
+    phase2_start_time = time.time()
+    
+    # Audio sovrapposti durante la seconda fase:
+    # - 20s dopo inizio fase 2: audio 11
+    # - 20s dopo inizio audio 11 (= 40s da inizio fase 2): audio 12
+    # - 20s dopo inizio audio 12 (= 60s da inizio fase 2): audio 12.1
+    
+    # Aspetta 20 secondi dall'inizio della seconda fase
+    time.sleep(20)
+    
+    # Audio 11 (a 20s dall'inizio fase 2)
+    play_audio(AUDIO_FILES["11"], "11")
+    
+    # Aspetta 20 secondi dall'inizio di audio 11
+    time.sleep(20)
+    
+    # Audio 12 (a 40s dall'inizio fase 2)
+    play_audio(AUDIO_FILES["12"], "12")
+    
+    # Calcola quanto tempo è passato dall'inizio della fase 2
+    elapsed = time.time() - phase2_start_time
+    remaining = 45.0 - elapsed
+    
+    # Se rimane tempo prima dei 45 secondi totali, aspetta
+    if remaining > 0:
+        print(f"[WAIT] Attesa completamento 45 secondi fase 2 (rimangono {remaining:.1f}s)...")
+        time.sleep(remaining)
+    
+    # Stop seconda fase di monitoraggio (dopo esattamente 45 secondi)
+    stop_arduino_monitoring("SECONDA FASE")
+    
+    print("\n" + "="*60)
+    print("=== FINE SECONDA FASE MONITORAGGIO ===")
+    print("="*60 + "\n")
+    
+    # ========================================
+    # ELABORAZIONE DATI
+    # ========================================
+    
+    print("[PROCESS] Elaborazione dati...")
     try:
         subprocess.run([sys.executable, "process_data.py"], check=True)
     except subprocess.CalledProcessError as e:
-        print(f"Errore nell'elaborazione dati: {e}")
+        print(f"[ERRORE] Elaborazione dati: {e}")
+    
+    # ========================================
+    # AUDIO FINALI
+    # ========================================
+    
+    # 20 secondi dopo l'inizio di audio 12, riproduci audio 12.1
+    # (audio 12 è già partito prima, quindi ora aspettiamo e riproduciamo 12.1)
+    time.sleep(20)
+    
+    # Audio 12.1
+    play_audio(AUDIO_FILES["12.1"], "12.1")
+    time.sleep(1)
+    
+    # Audio 13
+    play_audio(AUDIO_FILES["13"], "13")
+    time.sleep(2)
+    
+    # Audio 14
+    play_audio(AUDIO_FILES["14"], "14")
+    
+    # ========================================
+    # FINE ESPERIENZA
+    # ========================================
+    
+    print("\n" + "="*60)
+    print("*** FINE DELL'ESPERIENZA ***")
+    print("="*60 + "\n")
 
-    # 6. Attesa finale (totale 60s da fine audio 06)
-    # Abbiamo già aspettato 45s. Total require 60s -> mancano 15s.
-    print("Attesa finale 15s...")
-    time.sleep(15)
-
-    # 7. Audio 07
-    play_audio(AUDIO_FILES["07"])
-
-    print("=== FINE ESPERIENZA ===")
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nInterrotto dall'utente.")
+        print("\n[WARN] Interrotto dall'utente.")
         try:
+            stop_arduino_monitoring("EMERGENZA")
             subprocess.run(["pkill", "-f", ARDUINO_SCRIPT])
         except:
             pass
+        sys.exit(0)
