@@ -78,7 +78,6 @@ def check_contatto_trigger(timeout=5.0):
     """
     Monitora il file JSONL per rilevare un valore CONTATTO != 0 o un salto significativo.
     Ritorna True se il trigger è attivato, False se scade il timeout.
-    
     Strategia:
     - Legge continuamente le ultime righe del file
     - Cerca un valore CONTATTO > 0 o un salto significativo (es. >5)
@@ -110,7 +109,7 @@ def check_contatto_trigger(timeout=5.0):
                                         return True
                                     
                                     # Condizione 2: salto significativo (>5 rispetto all'ultimo)
-                                    if abs(contatto - last_contatto) > 5:
+                                    if abs(contatto - last_contatto) > 5: #VALORE DA PROVARE!!!!!!!!!
                                         print(f"[TRIGGER] RILEVATO! Salto CONTATTO: {last_contatto} -> {contatto}")
                                         return True
                                     
