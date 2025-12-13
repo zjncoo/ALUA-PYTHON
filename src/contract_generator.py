@@ -215,8 +215,8 @@ def genera_pdf_contratto_A4(dati):
     # - X Iniziale      : 855 px (Allineato a sinistra del testo fascia)
     # - Y Iniziale      : 2008 px (Inizio della fascia 1)
     # - Larghezza (W)   : 793 px
-    # - Altezza Totale  : 702 px
-    # - Altezza Slot    : 175.5 px (702 / 4)
+    # - Altezza Box     : 151 px (Specificato da utente)
+    # - Gap Verticale   : 20 px  (Tra un box e l'altro)
     #
     # STILE GRAFICO:
     # - Colore: Nero (RGB 0,0,0)
@@ -226,19 +226,18 @@ def genera_pdf_contratto_A4(dati):
     
     # Coordinate base definite
     risk_box_x = 855
-    risk_box_start_y = 2008
+    risk_box_start_y = 2010 # REVERTED to original request
     risk_box_w = 793
-    risk_box_h_total = 702
-    risk_box_h_slot = risk_box_h_total / 4.0
+    risk_box_h = 151    # Altezza esatta di ogni singolo quadrato
+    risk_box_gap = 22   # Distanza tra i quadrati
 
     # Fascia è 1..4. Calcoliamo l'offset Y.
     # Fascia 1 -> offset 0
-    # Fascia 2 -> offset 1 * 175.5
-    # ...
-    # Fascia 4 -> offset 3 * 175.5
+    # Fascia 2 -> offset 1 * (151 + 20)
     if 1 <= fascia <= 4:
         offset_idx = fascia - 1
-        current_y = risk_box_start_y + (offset_idx * risk_box_h_slot)
+        # Nuova formula con gap
+        current_y = risk_box_start_y + (offset_idx * (risk_box_h + risk_box_gap))
         
         # Impostiamo linea e colore
         # Richiesto: "spessi come la riga nel grafico"
@@ -253,7 +252,7 @@ def genera_pdf_contratto_A4(dati):
             x=px(risk_box_x),
             y=py(current_y),
             w=px(risk_box_w),
-            h=py(risk_box_h_slot),
+            h=py(risk_box_h),
             style='D'
         )
         # Ripristino default line width (opzionale, ma buona prassi)
