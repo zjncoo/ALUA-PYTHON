@@ -109,12 +109,13 @@ def _generate_png(avg_intensity, val_compat, output_path):
     ax.axis('off')
 
     # Disegniamo la curva (Rosso ALUA)
-    plt.plot(x, y, color='#FF0000', linewidth=3) # Usiamo un rosso puro o specifico se richiesto
+    plt.plot(x, y, color='#000000', linewidth=3) # Usiamo un rosso puro o specifico se richiesto
 
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     
     try:
-        plt.savefig(output_path, transparent=True, bbox_inches='tight', pad_inches=0.1)
+        # Rimuoviamo il padding per avere dimensioni esatte
+        plt.savefig(output_path, transparent=True)
         plt.close()
     except Exception as e:
         print(f"[LISSAJOUS] Errore salvataggio PNG: {e}")

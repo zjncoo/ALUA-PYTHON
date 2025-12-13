@@ -33,7 +33,7 @@ def py(pixel_value):
 # Le coordinate sono prese direttamente dal file template.
 LAYOUT = {
     # 1. EMBLEMA GRAFICO (Lissajous)
-    'Lissajous': { 'x': 291, 'y': 2108, 'w': 350, 'h': 350 },
+    'Lissajous': { 'x': 286, 'y': 2109, 'w': 357, 'h': 357 },
 
     # 2. PERCENTUALE (solo testo numerico)
     'Percentuale': { 'x': 1135, 'y': 771, 'font_size': 100 },
@@ -402,7 +402,7 @@ def genera_pdf_contratto_A4(dati):
     if True:
         c = LAYOUT['Nota_Rossa']
         pdf.set_font_size(c['font_size'])
-        pdf.set_text_color(200, 0, 0)  # rosso
+        pdf.set_text_color(0, 0, 0)  # rosso
         pdf.set_xy(px(c['x']), py(c['y']))
         # Traduzione PERSONA -> CONTRAENTE
         nome_raw = anello.get('nome', '') # es. "PERSONA 0"
