@@ -551,47 +551,81 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     colpevole = elab.get("colpevole", {})
     id_colp = colpevole.get("id_colpevole", -1)
     
-    # Indici bottoni attivi per URL (es "0,1,3")
-    btns0_idxs = [str(i) for i, x in enumerate(buttons0) if x == 1]
-    btns1_idxs = [str(i) for i, x in enumerate(buttons1) if x == 1]
-    
-    # Identificazione univoca
-    # GENERIAMO QUI L'ID UNICO CHE VERRÀ USATO OVUNQUE (QR e PDF)
+    # Identificazione univoca e Data
     unified_id = generate_unique_id()
+    # Data formattata per il contratto (es. 13.12.2025)
+    # CONTRACT GENERATOR usa datetime.now() se non passato, qui fissiamo la data per la coerenza
+    date_str = datetime.now().strftime('%d.%m.%Y')
+
+    # D. QR Code & URL Construction
+    # Costruiamo il dizionario dei parametri qui in process_data (come richiesto)
     
-    # Recalculate scores locally to avoid modifying processa_dati
-    # This satisfies the requirement to keep the core logic untouched while providing requested params
+    # 1. Recupero Dati per Params
+    risk_data = RISK_INFO.get(elab.get('fascia', 1), {})
+    
+    # Lista esplicita dei tipi di relazione (es. "AMICALE,LAVORATIVA")
+    types_str = ",".join(sorted(raw_types)) if 'raw_types' in locals() else ",".join(sorted(list(set(p0_labels + p1_labels))))
+
+    # Ricalcolo scores per params (simulato, o recuperato)
     arousal_data = elab.get("arousal", {})
-    score_scl = calcola_score_scl_da_arousal(arousal_data)
-    score_slider = calcola_score_slider(static_sample)
+    # Nota: per evitare dipendenze circolari o codice duplicato, usiamo i valori calcolati se disponibili o li ricalcoliamo
+    # Qui usiamo la logica locale se necessario, ma i valori float esatti di score_scl/slider non sono in result_pacchetto esplcitamente come float
+    # Li ricostruiamo rapidamente per l'URL.
+    
+    # Recalculate safe
+    def _safe_score_scl(a_dict):
+        p0 = a_dict.get("persona0", {})
+        p1 = a_dict.get("persona1", {})
+        a0 = bool(p0.get("arousal", False))
+        a1 = bool(p1.get("arousal", False))
+        if a0 and a1: return 0.0
+        if not a0 and not a1: return 1.0
+        rel0 = abs(p0.get("rel_diff", 0.0))
+        rel1 = abs(p1.get("rel_diff", 0.0))
+        delta_norm = clamp(abs(rel0 - rel1), 0.0, 1.0)
+        return clamp((50.0 - delta_norm * 50.0) / 100.0, 0.0, 1.0)
+        
+    score_scl_val = _safe_score_scl(arousal_data)
+    
+    # Slider score
+    v0 = slider0 * SLIDER_SCALE
+    v1 = slider1 * SLIDER_SCALE
+    diff_sl = abs(v0 - v1)
+    disc_sl = max(0.0, diff_sl - 5)
+    score_slider_val = clamp(1.0 - (disc_sl / 100.0), 0.0, 1.0)
 
     params = {
+        'id': unified_id,
+        'date': date_str,
+        'comp': elab.get('compatibilita', 50),
+        'fascia': elab.get('fascia', 1),
+        'cost': risk_data.get('price', "0,00€"),
+        'phrase': risk_data.get('phrase', ""),
+        'types': types_str, # Sostituisce btn0/btn1 con i nomi veri
         'scl0': int(last_scl0),
         'scl1': int(last_scl1),
         'avg0': int(avg_scl0),
         'avg1': int(avg_scl1),
         'sl0': slider0,
         'sl1': slider1,
-        'scl': f"{score_scl:.2f}",
-        'sli': f"{score_slider:.2f}",
-        'comp': elab.get('compatibilita', 50),
-        'btn0': ",".join(btns0_idxs),
-        'btn1': ",".join(btns1_idxs),
-        'bad': id_colp,
-        'fascia': elab.get('fascia', 1),
-        'id': unified_id
+        'scl': f"{score_scl_val:.2f}",
+        'sli': f"{score_slider_val:.2f}",
+        'bad': id_colp
     }
-    base_url = "https://alua-gamma.vercel.app/"
-    link_completo = base_url + "?" + urllib.parse.urlencode(params)
-    assets["qr_link"] = link_completo
-    assets["contract_id"] = unified_id  # Salviamo l'ID negli asset per passarlo al PDF
-    
+
+    # Passiamo i params al generatore esterno
     path_qr = os.path.join(output_dir, "temp_qr.png")
     try:
-        qrcode_generator.generate_qr(link_completo, path_qr)
+        link_completo = qrcode_generator.generate_contract_qr_from_params(params, path_qr)
+        assets["qr_link"] = link_completo
         assets["qr_code"] = path_qr
+        
+        # Salviamo anche la data per il PDF (usata da contract_generator)
+        assets["contract_date"] = date_str 
+        assets["contract_id"] = unified_id  
+        
     except Exception as e:
-        log.error(f"Errore QR: {e}")
+        log.error(f"Errore generazione QR: {e}")
         
     return assets
 

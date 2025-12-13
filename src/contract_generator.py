@@ -323,15 +323,20 @@ def genera_pdf_contratto_A4(dati):
     # Identificativo Contratto (Usiamo quello generato in process_data e salvato in assets, se presente)
     # Altrimenti fallback (safety)
     contract_id = dati.get('assets', {}).get('contract_id')
+    contract_date = dati.get('assets', {}).get('contract_date') # Recuperiamo la data sincronizzata
+    
     if not contract_id:
         contract_id = datetime.now().strftime("%Y%m%d-%H%M")
+    
+    if not contract_date:
+        contract_date = datetime.now().strftime('%d.%m.%Y')
     
     output_filename = f"Contract_{contract_id}.pdf"
     output_path = os.path.join(output_dir, output_filename)
     # Data
     c = LAYOUT['Header_Data']
     pdf.set_xy(px(c['x']), py(c['y']))
-    pdf.cell(px(300), 10, f"DATA: {datetime.now().strftime('%d.%m.%Y')}", ln=1, align='L')
+    pdf.cell(px(300), 10, f"DATA: {contract_date}", ln=1, align='L')
     
     # ID contratto
     c = LAYOUT['Header_ID']
