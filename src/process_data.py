@@ -604,8 +604,8 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         'types': types_str, # Sostituisce btn0/btn1 con i nomi veri
         'scl0': int(last_scl0),
         'scl1': int(last_scl1),
-        'avg0': int(avg_scl0),
-        'avg1': int(avg_scl1),
+        'avg0': f"{avg_scl0:.2f}",
+        'avg1': f"{avg_scl1:.2f}",
         'sl0': slider0,
         'sl1': slider1,
         'scl': f"{score_scl_val:.2f}",
