@@ -55,10 +55,10 @@ THRESHOLD_REL_SCL      = 0.10  # 10% #da valutare
 # sul PDF del contratto. (Vedi: contract_generator.py -> RiskPhrase)
 # Le frasi descrivono lo stato della relazione in base alla fascia calcolata.
 RISK_INFO = {
-    1: {"label": "MINIMO", "price": "250,00€", "phrase": "Stabilità strutturale ottimale. Nessuna criticità rilevata."},
-    2: {"label": "MODERATO", "price": "500,00€", "phrase": "Lievi oscillazioni di coerenza. Si consiglia monitoraggio periodico."},
-    3: {"label": "SIGNIFICATIVO", "price": "750,00€", "phrase": "Turbolenze emotive marcate. Rischio di frattura del legame."},
-    4: {"label": "CATASTROFICO", "price": "1.000,00€", "phrase": "Incompatibilità radicale. Collasso sistemico imminente."}
+    1: {"label": "MINIMO", "price": "250,00€", "phrase": "Sincronia sospettosamente perfetta. Siete un'anomalia statistica. Proteggiamo questo asset raro prima che lo roviniate."},
+    2: {"label": "MODERATO", "price": "500,00€", "phrase": "Tutto tranquillo. Forse troppo. Assicurate la vostra serenità contro il rischio di caos improvviso."},
+    3: {"label": "SIGNIFICATIVO", "price": "750,00€", "phrase": "Asset instabile, reggete per miracolo. Godetevi il presente, ma non fate progetti a lungo termine senza aver firmato il contratto."},
+    4: {"label": "CATASTROFICO", "price": "1.000,00€", "phrase": "Il vostro ottimismo è ammirevole, ma i dati non mentono. Firmate il contratto per evitare l’impatto imminente."}
 }
 SLIDER_MAX_RAW = 1023.0
 SLIDER_SCALE   = 100.0 / SLIDER_MAX_RAW   
