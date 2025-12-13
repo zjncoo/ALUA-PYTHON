@@ -489,7 +489,10 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     # A. Lissajous
     path_liss = os.path.join(output_dir, "temp_liss.png")
     try:
-        final_path_liss = lissajous.generate_lissajous(storico_tuple, path_liss)
+        # Recuperiamo la compatibilità calcolata per governare la "Fase" (Forma)
+        val_compat_final = result_pacchetto.get("elaborati", {}).get("compatibilita", 50)
+        
+        final_path_liss = lissajous.generate_lissajous(storico_tuple, val_compat_final, path_liss)
         assets["lissajous"] = final_path_liss
     except Exception as e:
         log.error(f"Errore Lissajous: {e}")
@@ -524,9 +527,17 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     # D. QR Code
     # Costruiamo URL.
     # Parametri: gsr0, gsr1, sl0, sl1, comp, btn0, btn1, bad, fascia, id
-    # srl0/1 prendiamo l'ultimo valore o media? Di solito ultimo.
+    
+    # 1. Recupero ULTIMI valori (per compatibilità con altri sistemi/display)
     last_scl0 = data_list[-1].get("SCL0", 0) if data_list else 0
     last_scl1 = data_list[-1].get("SCL1", 0) if data_list else 0
+
+    # 2. Calcolo MEDIE (per la frequenza del Lissajous visualizzato su Web)
+    if data_list:
+        avg_scl0 = sum(d.get("SCL0", 0) for d in data_list) / len(data_list)
+        avg_scl1 = sum(d.get("SCL1", 0) for d in data_list) / len(data_list)
+    else:
+        avg_scl0, avg_scl1 = 0.0, 0.0
     
     elab = result_pacchetto.get("elaborati", {})
     colpevole = elab.get("colpevole", {})
@@ -549,6 +560,8 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     params = {
         'scl0': int(last_scl0),
         'scl1': int(last_scl1),
+        'avg0': int(avg_scl0),
+        'avg1': int(avg_scl1),
         'sl0': slider0,
         'sl1': slider1,
         'scl': f"{score_scl:.2f}",
