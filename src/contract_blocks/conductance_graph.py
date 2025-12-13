@@ -83,12 +83,11 @@ def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductan
     ax.set_xlim(0, len(tempo))
 
     # 7. PLOTTING
-    # Contraente A: Linea solida molto più spessa
-    plt.plot(tempo, vals_a_smooth, color='black', linewidth=3.5, solid_capstyle='round')
+    # Contraente A: Invertito -> Tratteggiato su richiesta
+    plt.plot(tempo, vals_a_smooth, color='black', linewidth=3.5, linestyle='--', dashes=(7, 7), solid_capstyle='round')
     
-    # Contraente B: Linea tratteggiata più spessa
-    # Ridotto a (7, 7) su richiesta utente (ancora più fitto)
-    plt.plot(tempo, vals_b_smooth, color='black', linewidth=3.0, linestyle='--', dashes=(7, 7), solid_capstyle='round')
+    # Contraente B: Invertito -> Solido su richiesta
+    plt.plot(tempo, vals_b_smooth, color='black', linewidth=3.5, solid_capstyle='round')
 
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
