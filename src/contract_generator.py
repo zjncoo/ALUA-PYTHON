@@ -79,12 +79,12 @@ def genera_testo_clausole(tipi_attivi):
     
     # Frasi associate a ciascun tipo di relazione
     mapping = {
-        "PROFESSIONALE": "Collaborazione formale, efficienza prioritaria.",
-        "AMICIZIA": "Supporto reciproco, tempo non strutturato.",
+        "LAVORATIVA": "Collaborazione formale, efficienza prioritaria.",
+        "AMICALE": "Supporto reciproco, tempo non strutturato.",
         "ROMANTICA": "Tensione attrattiva e vulnerabilità emotiva.",
         "FAMILIARE": "Legame di appartenenza e obblighi impliciti.",
         "CONOSCENZA": "Esplorazione preliminare.",
-        "INTIMO": "Condivisione di spazi riservati."
+        "CONVIVENZA": "Condivisione di spazi riservati."
     }
 
     # Costruiamo la frase concatenando i pezzi corrispondenti ai tipi attivi

@@ -605,19 +605,6 @@ def prepara_dati_per_contratto(data_list, result_pacchetto, assets):
     """
     elab = result_pacchetto.get("elaborati", {})
     
-    # MAPPING CLAUSOLE
-    # ALUA usa stringhe tipo "AMICALE", "ROMANTICA".
-    # DATABASE CLAUSOLE usa chiavi: "AMICIZIA", "COPPIA", "FAMIGLIA", "LAVORO", "CONVIVENZA", "CONOSCENZA".
-    # Mapping definito nel piano:
-    mapping_rel = {
-        "AMICALE": "AMICIZIA",
-        "ROMANTICA": "COPPIA",
-        "LAVORATIVA": "LAVORO",
-        "FAMILIARE": "FAMIGLIA",
-        "CONOSCENZA": "CONOSCENZA",
-        "CONVIVENZA": "CONVIVENZA"
-    }
-    
     # Recuperiamo le relazioni dall'ultimo sample (statico)
     static_sample = data_list[-1] if data_list else {}
     p0_labels = static_sample.get("RELAZIONI_P0", [])
@@ -625,14 +612,10 @@ def prepara_dati_per_contratto(data_list, result_pacchetto, assets):
     
     # Unione unica delle relazioni
     raw_types = list(set(p0_labels + p1_labels))
-    # Conversione in chiavi per il DB
-    mapped_types = []
-    for t in raw_types:
-        if t in mapping_rel:
-            mapped_types.append(mapping_rel[t])
-        else:
-            mapped_types.append("CONOSCENZA") # Fallback
-            
+
+    # Mappatura diretta (nessuna traduzione necessaria, contract_generator aggiornato)
+    mapped_types = raw_types
+    
     # Remove duplicates
     mapped_types = list(set(mapped_types))
 
