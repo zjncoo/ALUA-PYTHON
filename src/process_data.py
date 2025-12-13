@@ -16,11 +16,13 @@ import contract_blocks.conductance_graph as conductance_graph
 import contract_generator
 
 # LOGGING
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="[{levelname}] {message}",
-    style="{"
-)
+# Commentato per ridurre l'output verboso [DEBUG] e [INFO]
+# Decommentare per riabilitare il debug dettagliato
+# logging.basicConfig(
+#     level=logging.DEBUG,
+#     format="[{levelname}] {message}",
+#     style="{"
+# )
 log = logging.getLogger("process_data")
 
 # PESI: combinano i tre contributi (SCL, slider, bottoni) nella compatibilità finale
@@ -504,8 +506,13 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         log.error(f"Errore Lissajous: {e}")
 
     # B. Visual Pezzi
+    # IMPORTANTE: relationship_viz si aspetta valori in percentuale (0-100),
+    # quindi convertiamo i valori raw (0-1023) prima di passarli
+    slider0_pct = int(slider0 * SLIDER_SCALE)
+    slider1_pct = int(slider1 * SLIDER_SCALE)
+    
     # P0
-    p0_data_b = {"buttons": buttons0, "slider": slider0}
+    p0_data_b = {"buttons": buttons0, "slider": slider0_pct}
     path_p0 = os.path.join(output_dir, "temp_p0.png")
     try:
         relationship_viz.genera_pezzo_singolo(p0_data_b, path_p0)
@@ -514,7 +521,7 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         log.error(f"Errore P0: {e}")
         
     # P1
-    p1_data_b = {"buttons": buttons1, "slider": slider1}
+    p1_data_b = {"buttons": buttons1, "slider": slider1_pct}
     path_p1 = os.path.join(output_dir, "temp_p1.png")
     try:
         relationship_viz.genera_pezzo_singolo(p1_data_b, path_p1)

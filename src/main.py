@@ -5,6 +5,7 @@ import signal
 import sys
 import json
 from threading import Thread
+import printer  # Per stampare il contratto
 
 # === CONFIGURAZIONE FILE AUDIO ===
 AUDIO_FILES = {
@@ -155,11 +156,12 @@ def main():
     # PRIMA FASE DI MONITORAGGIO
     # ========================================
     
-    # Audio 03 + Start Fase 1 Monitoraggio
-    play_audio(AUDIO_FILES["03"], "03")
-    
-    # Avvio prima fase di monitoraggio Arduino
+    # Avvio prima fase di monitoraggio Arduino (PRIMA dell'audio 03)
+    # In questo modo quando inizia l'audio la porta è già aperta
     start_arduino_monitoring("PRIMA FASE")
+    
+    # Audio 03
+    play_audio(AUDIO_FILES["03"], "03")
     
     # Dopo la fine di audio 03, aspetta 9 secondi
     time.sleep(9)
@@ -207,22 +209,30 @@ def main():
     # TRIGGER PER SECONDA FASE
     # ========================================
     
-    # Dopo audio 09, dobbiamo attendere il trigger o il timeout
-    # Prima aspetta 2 secondi come da specifiche
+    # Dopo audio 09, aspetta 2 secondi come da specifiche
     time.sleep(2)
     
-    # Audio 10 (in parallelo al monitoraggio del trigger)
+    # Avvio monitoraggio PRIMA dell'audio 10 (per evitare ritardi apertura porta)
+    start_arduino_monitoring("TRIGGER CHECK")
+    
+    # Audio 10 (in parallelo al monitoraggio già avviato)
     play_audio(AUDIO_FILES["10"], "10")
     
-    # Ora inizia il monitoraggio del trigger CONTATTO
+    # DOPO la fine dell'audio 10, controlla il trigger per 5 secondi
+    # Il monitoraggio è già attivo (porta aperta) e sta scrivendo dati freschi
     # Abbiamo due opzioni:
-    # 1. Trigger CONTATTO rilevato → parte subito seconda fase
-    # 2. Nessun trigger entro 5s dalla fine audio 10 → parte dopo 5s
+    # 1. Trigger CONTATTO rilevato entro 5s dalla fine audio 10 → parte subito
+    # 2. Nessun trigger entro 5s dalla fine audio 10 → parte automaticamente
     
+    # Controllo trigger (ritorna True appena lo rileva, altrimenti aspetta 5s)
     trigger_rilevato = check_contatto_trigger(timeout=5.0)
     
-    if not trigger_rilevato:
-        # Piano B: sono passati già 5s nel check, quindi partiamo subito
+    # Stop monitoraggio temporaneo
+    stop_arduino_monitoring("TRIGGER CHECK")
+    
+    if trigger_rilevato:
+        print("[INFO] Trigger rilevato! Avvio immediato seconda fase")
+    else:
         print("[WARN] Nessun trigger rilevato, avvio seconda fase dopo timeout")
     
     # ========================================
@@ -270,12 +280,37 @@ def main():
     print("="*60 + "\n")
     
     # ========================================
-    # ELABORAZIONE DATI
+    # ELABORAZIONE DATI E GENERAZIONE CONTRATTO
     # ========================================
     
     print("[PROCESS] Elaborazione dati...")
     try:
         subprocess.run([sys.executable, "process_data.py"], check=True)
+        
+        # ========================================
+        # STAMPA CONTRATTO
+        # ========================================
+        
+        # Il contratto è stato generato, ora lo stampiamo
+        # Cerchiamo il PDF più recente nella cartella contracts
+        contracts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "output", "contracts")
+        
+        if os.path.exists(contracts_dir):
+            # Lista tutti i PDF nella cartella
+            pdf_files = [f for f in os.listdir(contracts_dir) if f.endswith('.pdf')]
+            
+            if pdf_files:
+                # Ordina per data di modifica (più recente prima)
+                pdf_files.sort(key=lambda x: os.path.getmtime(os.path.join(contracts_dir, x)), reverse=True)
+                latest_pdf = os.path.join(contracts_dir, pdf_files[0])
+                
+                print(f"\n[PRINT] Invio contratto alla stampante: {pdf_files[0]}")
+                printer.invia_a_stampante(latest_pdf)
+            else:
+                print("[PRINT] Nessun contratto trovato da stampare")
+        else:
+            print(f"[PRINT] Cartella contratti non trovata: {contracts_dir}")
+            
     except subprocess.CalledProcessError as e:
         print(f"[ERRORE] Elaborazione dati: {e}")
     
