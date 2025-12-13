@@ -4,673 +4,786 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALUA EyeDeal</title>
-    <!-- Favicon / Logo -->
+    <title>ALUA Control Room</title>
     <link rel="icon" href="/static/logo_alua.svg" type="image/svg+xml">
 
     <style>
-        /* FONT */
         @font-face {
             font-family: 'Bergen Mono';
             src: url('/static/BergenMono-Regular.ttf') format('truetype');
             font-weight: normal;
-            font-style: normal;
         }
 
-        /* BASE THEME - ALUA WHITE */
         :root {
-            --bg-color: #ffffff;
-            --text-color: #000000;
-            --border-color: #000000;
-            --gray-color: #9ca3af;
-            /* gray-400 */
-            --light-gray: #f3f4f6;
-            /* gray-100 */
-            --danger-color: #ef4444;
+            --bg: #f5f5f5;
+            --card-bg: #ffffff;
+            --border: #000000;
+            --accent: #000000;
+            --success: #22c55e;
+            --text-main: #000000;
+            --text-dim: #666666;
         }
 
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Bergen Mono', 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text-main);
+            font-family: 'Bergen Mono', monospace;
             margin: 0;
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            letter-spacing: normal;
+            font-size: 14px;
         }
 
-        /* UTILS */
-        .uppercase {
-            text-transform: uppercase;
-        }
-
-        .tracking-widest {
-            letter-spacing: 0.15em;
-        }
-
-        .font-bold {
-            font-weight: bold;
-        }
-
-        .border-b-2 {
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        .border-2 {
-            border: 2px solid var(--border-color);
-        }
-
-        /* HEADER */
+        /* LAYOUT */
         header {
-            padding: 2rem;
+            background: var(--card-bg);
+            border-bottom: 2px solid var(--border);
+            padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid var(--border-color);
-            background: white;
-            z-index: 10;
+            align-items: center;
         }
 
-        .logo {
-            height: 2.5rem;
-            width: auto;
-            margin-bottom: 0.5rem;
-        }
-
-        /* MAIN */
         main {
             flex: 1;
-            padding: 2rem;
-            display: flex;
-            gap: 2rem;
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            /* Controls | Timeline | Live Data */
+            gap: 2px;
+            background: var(--border);
+            /* Creates grid lines */
             overflow: hidden;
-            background: #fff;
         }
 
-        /* PANELS */
-        .control-panel {
-            width: 300px;
+        .pane {
+            background: var(--card-bg);
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
         }
 
-        .status-box {
-            border: 2px solid var(--border-color);
-            padding: 1.5rem;
-            text-align: left;
-        }
-
-        .label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            color: var(--gray-color);
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-
-        .value {
-            font-size: 1.25rem;
+        .pane-header {
+            background: #eee;
+            padding: 0.75rem 1rem;
             font-weight: bold;
             text-transform: uppercase;
+            border-bottom: 2px solid var(--border);
+            letter-spacing: 0.1em;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* CONTROLS (Left) */
+        .control-group {
+            padding: 1.5rem;
+            border-bottom: 1px solid #eee;
         }
 
         .btn {
-            background: white;
-            color: black;
-            border: 2px solid black;
-            padding: 1.5rem;
+            width: 100%;
+            background: black;
+            color: white;
+            border: none;
+            padding: 1rem;
+            text-transform: uppercase;
             font-family: inherit;
             font-weight: bold;
-            font-size: 1rem;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
+            letter-spacing: 0.1em;
             cursor: pointer;
-            transition: all 0.2s;
             display: flex;
-            align-items: center;
             justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            transition: transform 0.1s;
         }
 
-        .btn:hover:not(:disabled) {
-            background: #f9f9f9;
-            transform: translateY(-2px);
-            box-shadow: 4px 4px 0px rgba(0, 0, 0, 1);
-        }
-
-        .btn:active:not(:disabled) {
-            transform: translateY(0);
-            box-shadow: 0px 0px 0px rgba(0, 0, 0, 1);
+        .btn:active {
+            transform: scale(0.98);
         }
 
         .btn:disabled {
-            opacity: 0.3;
+            opacity: 0.5;
             cursor: not-allowed;
-            border-color: #ccc;
-            color: #ccc;
         }
 
-        .btn-start {
-            background: black;
-            color: white;
-            border: 2px solid black;
+        .btn-stop {
+            background: white;
+            color: red;
+            border: 2px solid red;
         }
 
-        .btn-start:hover:not(:disabled) {
-            background: #333;
-            color: white;
-            box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.2);
-        }
-
-        /* CONSOLE */
-        .console-wrapper {
-            flex: 1;
-            border: 2px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            background: #fcfcfc;
-        }
-
-        .console-header {
-            padding: 1rem;
-            border-bottom: 2px solid var(--border-color);
+        .check-item {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            background: #fff;
-        }
-
-        .console-content {
-            flex: 1;
-            padding: 1rem;
-            overflow-y: auto;
-            font-family: 'Bergen Mono', monospace;
+            margin-bottom: 0.5rem;
             font-size: 0.85rem;
-            line-height: 1.4;
-            color: #333;
         }
 
-        .log-line {
-            padding: 2px 0;
-            border-bottom: 1px solid transparent;
+
+
+        /* TIMELINE (Center) */
+        .timeline-list {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
 
-        .log-line:hover {
+        .t-item {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            background: #fafafa;
+            align-items: center;
+            opacity: 0.7;
+        }
+
+        .t-item.active {
+            opacity: 1;
+            border: 2px solid black;
+            background: white;
+            box-shadow: 4px 4px 0 black;
+            transform: translateX(-2px);
+        }
+
+        .t-time {
+            font-size: 0.7rem;
+            color: #999;
+            width: 50px;
+            text-align: right;
+        }
+
+        .t-content {
+            flex: 1;
+        }
+
+        .t-title {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .t-meta {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* LIVE DATA (Right) */
+        .module {
+            padding: 1.5rem;
+            border-bottom: 2px solid #eee;
+        }
+
+        .module-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #999;
+            margin-bottom: 1rem;
+            letter-spacing: 0.1em;
+        }
+
+        /* Sliders */
+        .slider-viz {
+            display: flex;
+            gap: 10px;
+            height: 150px;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .bar-container {
+            width: 40px;
             background: #eee;
+            height: 100%;
+            position: relative;
+            border: 1px solid #ccc;
         }
 
-        /* UTILS */
-        .animate-pulse {
-            animation: pulse 2s infinite;
+        .bar-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: black;
+            transition: height 0.2s;
         }
 
-        @keyframes pulse {
-            0% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
-            }
-
-            100% {
-                opacity: 1;
-            }
+        .bar-label {
+            text-align: center;
+            margin-top: 5px;
+            font-weight: bold;
         }
+
+        /* Buttons Grid */
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .p-col {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .p-label {
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-indicator {
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #ccc;
+            transition: all 0.2s;
+        }
+
+        .btn-indicator.active {
+            background: black;
+            color: white;
+            border-color: black;
+            font-weight: bold;
+        }
+
+        /* LOGS */
+        .terminal-overlay {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 300px;
+            background: #111;
+            color: #0f0;
+            font-family: 'Bergen Mono', monospace;
+            padding: 1rem;
+            transform: translateY(100%);
+
+            .terminal-overlay.open {
+                transform: translateY(0);
+                pointer-events: all;
+            }
     </style>
 </head>
 
 <body>
 
-    <svg style="display: none;">
-        <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"></polyline>
-        </symbol>
-        <symbol id="icon-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-        </symbol>
-        <symbol id="icon-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-        </symbol>
-        <symbol id="icon-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+    <svg style="display:none;">
+        <symbol id="icon-play" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
-        </symbol>
-        <symbol id="icon-cpu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
-            <rect x="9" y="9" width="6" height="6"></rect>
-            <line x1="9" y1="1" x2="9" y2="4"></line>
-            <line x1="15" y1="1" x2="15" y2="4"></line>
-            <line x1="9" y1="20" x2="9" y2="23"></line>
-            <line x1="15" y1="20" x2="15" y2="23"></line>
-            <line x1="20" y1="9" x2="23" y2="9"></line>
-            <line x1="20" y1="14" x2="23" y2="14"></line>
-            <line x1="1" y1="9" x2="4" y2="9"></line>
-            <line x1="1" y1="14" x2="4" y2="14"></line>
         </symbol>
     </svg>
 
     <header>
-        <div>
-            <img src="/static/logo_alua.svg" alt="ALUA" class="logo">
-            <div class="label">Control Room</div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <img src="/static/logo_alua.svg" height="30">
+            <div>CONTROL ROOM <span style="font-size: 0.7em; color: #999;">V2.0</span></div>
         </div>
         <div style="text-align: right;">
-            <div class="label">System</div>
-            <div class="value" style="font-size: 1rem;">EyeDeal</div>
+            <div id="status-badge"
+                style="background: black; color: white; padding: 0.25rem 0.75rem; font-weight: bold;">IDLE</div>
         </div>
     </header>
 
     <main>
-        <!-- LEFT: CONTROLS -->
-        <div class="control-panel">
 
-            <!-- Connection Status -->
-            <div class="status-box">
-                <span class="label">CONNESSIONE ARDUINO - EyeDeal</span>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div id="ws-indicator" style="width: 10px; height: 10px; background: red; border-radius: 50%;">
+        <!-- PANE 1: SYSTEM & CONTROLS -->
+        <div class="pane">
+            <div class="pane-header">Controlli Sistema</div>
+
+            <div class="control-group">
+                <div class="btn-group">
+                    <button id="btn-start" class="btn btn-primary" onclick="startSystem()">
+                        <div class="icon-play">▶</div> AVVIA ESPERIENZA
+                    </button>
+                    <button id="btn-stop" class="btn btn-danger" onclick="stopSystem()">
+                        <div class="icon-stop">■</div> STOP EMERGENZA
+                    </button>
+                    <button id="btn-reset" class="btn" style="border: 1px solid #666; color: #666;"
+                        onclick="resetSystem()">
+                        ⟳ RESET
+                    </button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="module-title">SYSTEM STATUS</div>
+                <div class="chk-row">
+                    <span>SERVER CONNECTION</span>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <span id="lbl-server" style="font-size:0.7em;">WAIT...</span>
+                        <div id="chk-server" class="check-icon"></div>
                     </div>
-                    <span id="ws-text" style="font-weight: bold;">DISCONNESSO</span>
+                </div>
+                <div class="chk-row">
+                    <span>ARDUINO SERIAL</span>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <span id="lbl-arduino" style="font-size:0.7em;">WAIT...</span>
+                        <div id="chk-arduino" class="check-icon"></div>
+                    </div>
+                </div>
+                <div class="chk-row">
+                    <span>AUDIO SYSTEM</span>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <span id="lbl-audio" style="font-size:0.7em;">WAIT...</span>
+                        <div id="chk-audio" class="check-icon"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Main Actions -->
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
-                <button id="btn-start" class="btn btn-start" onclick="startExperience()">
-                    <span>INIZIA</span>
-                    <svg width="20" height="20">
-                        <use href="#icon-play" />
-                    </svg>
-                </button>
+            <div class="control-group" style="border:none;">
+                <div class="module-title">SCENARIO SYSTEM</div>
 
-                <button id="btn-stop" class="btn" onclick="stopExperience()">
-                    <span>STOP</span>
-                    <div style="width: 12px; height: 12px; background: currentColor;"></div>
-                </button>
+                <div
+                    style="background: #111; color: white; padding: 1rem; margin-bottom: 0.5rem; border-left: 4px solid #fff;">
+                    <div style="font-size: 0.6rem; color: #888; margin-bottom: 0.2rem;">MACRO FASE</div>
+                    <div id="phase-current" style="font-size: 1.1rem; font-weight: bold;">ATTESA...</div>
+                </div>
+
+                <div
+                    style="background: #fff; color: black; border: 1px solid #000; padding: 1rem; margin-bottom: 1rem;">
+                    <div class="module-title" style="margin-bottom:0.5rem; border:none; padding:0;">AUDIO ENGINE</div>
+
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+                        <span style="font-size:0.7rem; font-weight:bold;">NOW PLAYING</span>
+                        <span id="audio-status"
+                            style="font-size:0.6rem; background:black; color:white; padding:2px 4px;">IDLE</span>
+                    </div>
+
+                    <div id="audio-current"
+                        style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.5rem; color: #000;">---</div>
+
+                    <div style="border-top:1px dotted #ccc; padding-top:0.5rem;">
+                        <span style="font-size:0.6rem; color:#666;">NEXT TRACK</span>
+                        <div id="audio-next" style="font-weight:bold; color:#666;">---</div>
+                    </div>
+                </div>
+
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 0.5rem;">
+                    <span style="font-size: 0.8rem;">SESSION TIME:</span>
+                    <span id="timer" style="font-weight: bold; font-family: monospace; font-size: 1.2rem;">00:00</span>
+                </div>
             </div>
 
-            <div style="margin-top: auto;">
-                <div id="clock" style="font-family: monospace; color: #999;">--:--</div>
+            <div style="margin-top: auto; padding: 1.5rem;">
+                <button onclick="toggleTerminal()"
+                    style="background:none; border:none; text-decoration:underline; font-family:inherit; cursor:pointer;">
+                    Toggle Raw Logs
+                </button>
+            </div>
+        </div>
+
+        <!-- PANE 2: TIMELINE (SPLIT) -->
+        <div class="pane pane-split" style="background: #fdfdfd;">
+
+            <!-- LEFT: TIMELINE LIST -->
+            <div class="split-left">
+                <div class="pane-header">
+                    <span>Timeline</span>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <span style="font-size: 0.8em; opacity: 0.5;">LIVE</span>
+                        <button onclick="toggleConsole()"
+                            style="background:transparent; border:1px solid #999; color:#000; cursor:pointer; font-size:0.7em; padding:2px 6px;">CONSOLE
+                            ⬌</button>
+                    </div>
+                </div>
+                <div id="timeline" class="timeline-list">
+                    <div id="timeline-placeholder" style="text-align: center; color: #999; margin-top: 50%;">In attesa
+                        di start...</div>
+                </div>
+            </div>
+
+            <!-- RIGHT: CONSOLE -->
+            <div id="console-subpane" class="split-right collapsed">
+                <div class="pane-header" style="background:#222; color:#fff; border-bottom:1px solid #444;">
+                    <span>RAW LOGS</span>
+                    <span style="font-size:0.7em; opacity:0.5;">● LIVE</span>
+                </div>
+                <div id="terminal" class="terminal-content">
+                    <div style="color:#666;">Waiting for logs...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANE 3: LIVE DATA -->
+        <div class="pane">
+            <div class="pane-header">Dati Sensori</div>
+
+            <!-- BUTTONS MATRIX -->
+            <div class="module">
+                <div class="module-title">RELAZIONI (Bottoni)</div>
+                <div class="btn-grid">
+                    <div class="p-col">
+                        <div class="p-label">CONTRAENTE A</div>
+                        <div id="btn-a-0" class="btn-indicator">CONOSCENZA</div>
+                        <div id="btn-a-1" class="btn-indicator">ROMANTICA</div>
+                        <div id="btn-a-2" class="btn-indicator">LAVORATIVA</div>
+                        <div id="btn-a-3" class="btn-indicator">AMICALE</div>
+                        <div id="btn-a-4" class="btn-indicator">FAMILIARE</div>
+                        <div id="btn-a-5" class="btn-indicator">CONVIVENZA</div>
+                    </div>
+                    <div class="p-col">
+                        <div class="p-label">CONTRAENTE B</div>
+                        <div id="btn-b-0" class="btn-indicator">CONOSCENZA</div>
+                        <div id="btn-b-1" class="btn-indicator">ROMANTICA</div>
+                        <div id="btn-b-2" class="btn-indicator">LAVORATIVA</div>
+                        <div id="btn-b-3" class="btn-indicator">AMICALE</div>
+                        <div id="btn-b-4" class="btn-indicator">FAMILIARE</div>
+                        <div id="btn-b-5" class="btn-indicator">CONVIVENZA</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SLIDERS -->
+            <div class="module">
+                <div class="module-title">INTENSITÀ (Slider)</div>
+                <div class="slider-viz">
+                    <div>
+                        <div class="bar-container">
+                            <div id="bar-s0" class="bar-fill" style="height: 0%"></div>
+                        </div>
+                        <div class="bar-label">A</div>
+                    </div>
+                    <div>
+                        <div class="bar-container">
+                            <div id="bar-s1" class="bar-fill" style="height: 0%"></div>
+                        </div>
+                        <div class="bar-label">B</div>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 1rem; font-family: monospace;">
+                    <span id="val-s0">0</span> / <span id="val-s1">0</span>
+                </div>
+            </div>
+
+            <!-- SENSORS -->
+            <div class="module" style="border:none;">
+                <div class="module-title">BIOMETRICA (GSR)</div>
+                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2rem;">
+                    <div>A: <span id="val-gsr0">---</span></div>
+                    <div>B: <span id="val-gsr1">---</span></div>
+                </div>
+                <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
+                    <div style="display:flex; justify-content: space-between; align-items: center;">
+                        <span>CONTATTO MANI:</span>
+                        <div id="contact-indicator"
+                            style="width: 15px; height: 15px; border-radius: 50%; border: 1px solid black;"></div>
+                    </div>
+                </div>
             </div>
 
         </div>
 
-        <!-- RIGHT: VISUAL TIMELINE -->
-        <div class="console-wrapper">
-            <div class="console-header">
-                <span class="label" style="margin:0; color:black;">Sequenza Operativa</span>
-                <div style="flex:1; height: 1px; background: #eee; margin: 0 1rem;"></div>
-                <div class="label" id="step-counter">0 STEP</div>
-            </div>
-
-            <div id="timeline" class="timeline-content">
-                <div class="placeholder-msg">
-                    <svg width="48" height="48" stroke="#ccc" stroke-width="1">
-                        <use href="#icon-activity" />
-                    </svg>
-                    <p>Pronto per avviare l'esperienza.</p>
-                </div>
-            </div>
-
-            <!-- Mini Terminal Toggle -->
-            <div class="mini-terminal-header" onclick="toggleTerminal()">
-                <span>LOG RAW</span>
-                <span id="terminal-toggle-icon">▲</span>
-            </div>
-            <div id="raw-terminal" class="mini-terminal"></div>
-        </div>
     </main>
 
-    <style>
-        /* NEW TIMELINE STYLES */
-        .timeline-content {
-            flex: 1;
-            padding: 2rem;
-            overflow-y: auto;
-            background: #fafafa;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
 
-        .step-card {
-            background: white;
-            border: 2px solid black;
-            padding: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            animation: slideIn 0.3s ease-out;
-            box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.05);
-            transition: all 0.3s;
-        }
-
-        .step-card.active {
-            border-color: black;
-            box-shadow: 4px 4px 0px rgba(0, 0, 0, 1);
-            transform: translateX(5px);
-        }
-
-        .step-icon {
-            width: 40px;
-            height: 40px;
-            background: black;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .step-icon.success {
-            background: white;
-            color: black;
-            border: 2px solid black;
-        }
-
-        .step-icon.error {
-            background: red;
-            color: white;
-            border: 2px solid red;
-        }
-
-        .step-icon.pending {
-            background: white;
-            color: black;
-            border: 2px solid #ddd;
-        }
-
-        .step-info {
-            flex: 1;
-        }
-
-        .step-title {
-            font-weight: bold;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            margin-bottom: 0.25rem;
-        }
-
-        .step-detail {
-            font-size: 0.75rem;
-            color: #666;
-            font-family: monospace;
-        }
-
-        .step-time {
-            font-size: 0.7rem;
-            color: #999;
-            font-family: monospace;
-            border-left: 1px solid #eee;
-            padding-left: 1rem;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .placeholder-msg {
-            text-align: center;
-            color: #999;
-            margin-top: 20%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        /* MINI TERMINAL */
-        .mini-terminal-header {
-            background: #eee;
-            padding: 0.5rem 1rem;
-            font-size: 0.7rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            border-top: 2px solid black;
-        }
-
-        .mini-terminal {
-            height: 0px;
-            overflow: hidden;
-            background: black;
-            color: #22c55e;
-            font-family: monospace;
-            font-size: 0.7rem;
-            padding: 0 1rem;
-            transition: height 0.3s;
-        }
-
-        .mini-terminal.open {
-            height: 150px;
-            padding: 1rem;
-            overflow-y: auto;
-        }
-    </style>
 
     <script>
-        // CLOCK
-        setInterval(() => {
-            const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleTimeString('it-IT');
-        }, 1000);
-
-        // LOGIC
-        const timeline = document.getElementById('timeline');
-        const rawTerminal = document.getElementById('raw-terminal');
-        const wsInd = document.getElementById('ws-indicator');
-        const wsText = document.getElementById('ws-text');
-        const btnStart = document.getElementById('btn-start');
-        const stepCounter = document.getElementById('step-counter');
-
+        // --- STATE ---
+        const wsUrl = `ws://${window.location.host}/ws/logs`;
         let ws;
-        let isRunning = false;
-        let stepCount = 0;
+        let startTime = null;
+        let timerInterval;
+        let isExperienceRunning = false;
 
-        function connect() {
-            ws = new WebSocket(`ws://${window.location.host}/ws/logs`);
+        // --- DOM REFS ---
+        const dom = {
+            timeline: document.getElementById('timeline'),
+            terminal: document.getElementById('terminal'),
+            btnStart: document.getElementById('btn-start'),
+            status: document.getElementById('status-badge'),
 
+            // Phase UI
+            phaseCurrent: document.getElementById('phase-current'),
+
+            // Audio UI
+            audioCurrent: document.getElementById('audio-current'),
+            audioNext: document.getElementById('audio-next'),
+            audioStatus: document.getElementById('audio-status'),
+
+            timer: document.getElementById('timer'),
+
+            checks: {
+                server: document.getElementById('chk-server'),
+                arduino: document.getElementById('chk-arduino'),
+                audio: document.getElementById('chk-audio'),
+            },
+            data: {
+                s0: document.getElementById('bar-s0'),
+                s1: document.getElementById('bar-s1'),
+                vs0: document.getElementById('val-s0'),
+                vs1: document.getElementById('val-s1'),
+                gsr0: document.getElementById('val-gsr0'),
+                gsr1: document.getElementById('val-gsr1'),
+                contact: document.getElementById('contact-indicator')
+            }
+        };
+
+        const BUTTON_KEYS = [
+            "CONOSCENZA", "ROMANTICA", "LAVORATIVA", "AMICALE", "FAMILIARE", "CONVIVENZA"
+        ];
+
+        const EXPERIENCE_SEQUENCE = {
+            "01": { desc: "Intro (01)", next: "02" },
+            "02": { desc: "Istruzioni (02)", next: "03 (Start Monitoraggio)" },
+            "03": { desc: "Prima Fase (03)", next: "04" },
+            "04": { desc: "Guida (04)", next: "04.1" },
+            "04.1": { desc: "Deepening (04.1)", next: "05" },
+            "05": { desc: "Immersione (05)", next: "06" },
+            "06": { desc: "Sensazioni (06)", next: "06.1" },
+            "06.1": { desc: "Focus (06.1)", next: "07 (Transizione)" },
+            "07": { desc: "Transizione (07)", next: "08" },
+            "08": { desc: "Prepare Trigger (08)", next: "09" },
+            "09": { desc: "Ready Trigger (09)", next: "10 (Check Contatto)" },
+            "10": { desc: "Trigger Active (10)", next: "11 (Seconda Fase)" },
+            "11": { desc: "Seconda Fase (11)", next: "12" },
+            "12": { desc: "Intensità (12)", next: "12.1 (Conclusione)" },
+            "12.1": { desc: "Outro (12.1)", next: "FINE" },
+        };
+
+        // --- INIT ---
+        function init() {
+            connectWs();
+        }
+
+        function connectWs() {
+            ws = new WebSocket(wsUrl);
             ws.onopen = () => {
-                wsInd.style.background = "black";
-                wsText.innerText = "ONLINE";
-                addRawLog("--- SISTEMA ONLINE ---");
+                updateCheckUI('server', 'OK', "CONNESSO");
+                log("WS Connected", true);
             };
-
-            ws.onmessage = (event) => {
-                const text = event.data;
-                addRawLog(text);
-                parseLogToTimeline(text);
-
-                if (text.includes("=== INIZIO")) {
-                    setRunning(true);
-                    clearTimeline();
-                }
-                if (text.includes("*** FINE")) {
-                    setRunning(false);
-                    addTimelineItem("success", "Esperienza Completata", "Attendere reset...", "FINISHED");
-                }
-            };
-
             ws.onclose = () => {
-                wsInd.style.background = "red";
-                wsText.innerText = "OFFLINE";
-                setTimeout(connect, 3000);
+                updateCheckUI('server', 'ERR', "DISCONNESSO");
+                setTimeout(connectWs, 2000);
             };
+            ws.onmessage = (e) => handleMessage(e.data);
         }
 
-        function clearTimeline() {
-            timeline.innerHTML = "";
-            stepCount = 0;
-            updateCounter();
-        }
+        function handleMessage(raw) {
+            let isProtocol = false;
+            let data = null;
 
-        function updateCounter() {
-            stepCounter.innerText = stepCount + " CHECKS";
-        }
+            try {
+                if (raw.trim().startsWith('{')) {
+                    data = JSON.parse(raw);
+                    if (data.type) {
+                        isProtocol = true;
+                        processEvent(data);
+                    }
+                }
+            } catch (e) { }
 
-        // PARSER CHIAVE: Trasforma il testo grezzo in grafica
-        function parseLogToTimeline(text) {
-            text = text.trim();
-            if (!text) return;
+            if (!isProtocol) {
+                const div = document.createElement('div');
+                div.textContent = raw;
+                dom.terminal.appendChild(div);
+                dom.terminal.scrollTop = dom.terminal.scrollHeight;
+                if (dom.terminal.children.length > 200) dom.terminal.removeChild(dom.terminal.firstChild);
+            }
 
-            // Regex parsing per i tag ALUA definiti in main.py
-            // [AUDIO], [OK], [START], [TRIGGER], [PROCESS], [PRINT], [ERRORE], [WARN]
-
-            if (text.includes("[AUDIO]")) {
-                const msg = text.replace(/\[.*?\]/, "").trim();
-                addTimelineItem("processing", "Riproduzione Audio", msg, "AUDIO");
-            }
-            else if (text.includes("[OK]")) {
-                // Trova l'ultimo item processing e lo marca done
-                markLastAsSuccess();
-            }
-            else if (text.includes("[START]")) {
-                const msg = text.replace(/\[.*?\]/, "").trim();
-                addTimelineItem("cpu", "Avvio Processo", msg, "SYSTEM");
-            }
-            else if (text.includes("[STOP]")) {
-                markLastAsSuccess();
-            }
-            else if (text.includes("[TRIGGER]")) {
-                const msg = text.replace(/\[.*?\]/, "").trim();
-                addTimelineItem("alert", "Trigger Rilevato", msg, "SENSOR");
-            }
-            else if (text.includes("[PROCESS]")) {
-                addTimelineItem("cpu", "Elaborazione Dati", "Generazione Contratto...", "CORE");
-            }
-            else if (text.includes("[PRINT]")) {
-                const msg = text.replace(/\[.*?\]/, "").trim();
-                addTimelineItem("success", "Stampa Contratto", msg, "PRINTER");
-            }
-            else if (text.includes("[ERRORE]")) {
-                const msg = text.replace(/\[.*?\]/, "").trim();
-                addTimelineItem("error", "Errore Critico", msg, "ERROR");
+            if (!isProtocol) {
+                if (raw.includes("[AUDIO]")) {
+                    const audioId = raw.match(/audio ([\d\.]+)/)?.[1];
+                    if (audioId) processEvent({ type: 'STEP', category: 'AUDIO', status: 'RUNNING', detail: audioId });
+                }
+                if (raw.includes("FINE DELL'ESPERIENZA")) {
+                    setStatus("FINISHED");
+                    stopTimer();
+                    dom.phaseCurrent.innerText = "COMPLETATO";
+                    updateAudioUI("---", "---", "IDLE");
+                }
             }
         }
 
-        let lastItem = null;
+        function processEvent(evt) {
+            if (evt.type === 'DATA') {
+                updateLiveData(evt.payload);
+            }
+            else if (evt.type === 'CHECK') {
+                const map = { 'AUDIO_FILES': 'audio', 'ARDUINO': 'arduino', 'DB_CONNECTION': 'server' };
+                if (map[evt.component]) {
+                    updateCheckUI(map[evt.component], evt.status === 'OK' ? 'OK' : 'ERR', evt.status);
+                }
+            }
+            else if (evt.type === 'STEP') {
+                addTimelineItem(evt.category, evt.detail);
+                if (evt.category === 'AUDIO') {
+                    if (evt.status === 'RUNNING') {
+                        const seq = EXPERIENCE_SEQUENCE[evt.detail];
+                        const label = seq ? seq.desc : `Audio ${evt.detail}`;
+                        const next = seq ? seq.next : "...";
+                        updateAudioUI(label, next, "PLAYING");
+                    } else if (evt.status === 'DONE') {
+                        updateAudioUI("---", "Wait...", "IDLE");
+                    }
+                }
+            }
+            else if (evt.type === 'PHASE') {
+                if (!isExperienceRunning || evt.name === "PRE-MONITORAGGIO") {
+                    startTimer();
+                    isExperienceRunning = true;
+                    setStatus("RUNNING");
+                }
+                addTimelineItem("PHASE", evt.name);
+                dom.phaseCurrent.innerText = evt.name;
+                dom.phaseCurrent.style.color = "#22c55e";
+                setTimeout(() => { dom.phaseCurrent.style.color = "white"; }, 500);
+            }
+            else if (evt.type === 'SYNC') {
+                restoreState(evt.payload);
+            }
+        }
 
-        function addTimelineItem(type, title, detail, tag) {
-            stepCount++;
-            updateCounter();
+        function restoreState(s) {
+            console.log("Restoring state:", s);
+            if (s.is_started) {
+                isExperienceRunning = true;
+                setStatus("RUNNING");
+                startTimer();
+            }
+            if (s.last_phase) processEvent(s.last_phase);
+            if (s.current_audio) processEvent(s.current_audio);
+            if (s.last_data) updateLiveData(s.last_data.payload);
+        }
 
+        function updateAudioUI(current, next, status) {
+            dom.audioCurrent.innerText = current;
+            dom.audioNext.innerText = next;
+            dom.audioStatus.innerText = status;
+            if (status === 'PLAYING') {
+                dom.audioStatus.style.background = "#22c55e";
+                dom.audioStatus.classList.add('blink');
+            } else {
+                dom.audioStatus.style.background = "black";
+                dom.audioStatus.classList.remove('blink');
+            }
+        }
+
+        function updateCheckUI(id, status, text) {
+            const icon = dom.checks[id];
+            const label = document.getElementById(`lbl-${id}`);
+            icon.className = `check-icon ${status.toLowerCase()}`;
+            if (label) {
+                label.innerText = text;
+                label.style.color = status === 'OK' ? '#22c55e' : '#ef4444';
+            }
+        }
+
+        function updateLiveData(d) {
+            const p0 = Math.min(100, Math.max(0, (d.SLIDER0 / 1023) * 100));
+            const p1 = Math.min(100, Math.max(0, (d.SLIDER1 / 1023) * 100));
+            dom.data.s0.style.height = p0 + "%";
+            dom.data.s1.style.height = p1 + "%";
+            dom.data.vs0.innerText = d.SLIDER0;
+            dom.data.vs1.innerText = d.SLIDER1;
+            dom.data.gsr0.innerText = d.SCL0;
+            dom.data.gsr1.innerText = d.SCL1;
+            dom.data.contact.style.background = d.CONTATTO > 0 ? "#22c55e" : "transparent";
+
+            document.querySelectorAll('.btn-indicator').forEach(b => b.classList.remove('active'));
+            d.RELAZIONI_P0.forEach(rel => {
+                const idx = BUTTON_KEYS.indexOf(rel);
+                if (idx >= 0) document.getElementById(`btn-a-${idx}`)?.classList.add('active');
+            });
+            d.RELAZIONI_P1.forEach(rel => {
+                const idx = BUTTON_KEYS.indexOf(rel);
+                if (idx >= 0) document.getElementById(`btn-b-${idx}`)?.classList.add('active');
+            });
+        }
+
+        function addTimelineItem(title, meta) {
             const div = document.createElement('div');
-            div.className = "step-card active";
-
-            // Icon selection
-            let iconSvg = "";
-            if (type === 'processing') iconSvg = '<svg width="20" height="20" class="animate-pulse"><use href="#icon-activity"/></svg>';
-            if (type === 'success') iconSvg = '<svg width="20" height="20"><use href="#icon-check"/></svg>';
-            if (type === 'error') iconSvg = '<svg width="20" height="20"><use href="#icon-alert"/></svg>';
-            if (type === 'cpu') iconSvg = '<svg width="20" height="20"><use href="#icon-cpu"/></svg>';
-            if (type === 'alert') iconSvg = '<svg width="20" height="20"><use href="#icon-alert"/></svg>';
+            div.className = "t-item active";
+            const timeStr = new Date().toLocaleTimeString().split(' ')[0];
+            let icon = '';
+            if (title === 'PHASE') icon = '🔴';
+            if (title === 'AUDIO') icon = '🎵';
 
             div.innerHTML = `
-                <div class="step-icon ${type == 'success' ? 'success' : ''} ${type == 'error' ? 'error' : ''}">
-                    ${iconSvg}
+                <div class="t-time">${timeStr}</div>
+                <div class="t-content">
+                    <div class="t-title">${icon} ${title}</div>
+                    <div class="t-meta">${meta}</div>
                 </div>
-                <div class="step-info">
-                    <div class="step-title">${title}</div>
-                    <div class="step-detail">${detail}</div>
-                </div>
-                <div class="step-time">${tag}</div>
             `;
-
-            timeline.appendChild(div);
-            timeline.scrollTop = timeline.scrollHeight;
-            lastItem = div;
+            const ph = document.getElementById('timeline-placeholder');
+            if (ph) ph.remove();
+            dom.timeline.insertBefore(div, dom.timeline.firstChild);
         }
 
-        function markLastAsSuccess() {
-            if (lastItem) {
-                const icon = lastItem.querySelector('.step-icon');
-                if (icon) {
-                    icon.classList.add('success');
-                    icon.innerHTML = '<svg width="20" height="20"><use href="#icon-check"/></svg>';
-                }
-                lastItem.classList.remove('active'); // Remove pulse/shadow
+        function startSystem() {
+            fetch('/api/start', { method: 'POST' });
+            dom.timeline.innerHTML = '<div id="timeline-placeholder" style="text-align: center; color: #999; margin-top: 50%;">In attesa di start...</div>';
+            dom.checks.arduino.className = "check-icon";
+            dom.checks.audio.className = "check-icon";
+            dom.phaseCurrent.innerText = "AVVIO...";
+            updateAudioUI("---", "...", "IDLE");
+            dom.timer.innerText = "00:00";
+            isExperienceRunning = false;
+        }
+
+        function stopSystem() {
+            fetch('/api/stop', { method: 'POST' });
+            isExperienceRunning = false;
+            stopTimer();
+            dom.phaseCurrent.innerText = "STOPPED";
+        }
+
+        function resetSystem() {
+            stopSystem();
+            dom.timeline.innerHTML = '<div id="timeline-placeholder" style="text-align: center; color: #999; margin-top: 50%;">In attesa di start...</div>';
+            dom.terminal.innerHTML = '';
+            setStatus("READY");
+            dom.timer.innerText = "00:00";
+            dom.phaseCurrent.innerText = "IN ATTESA...";
+            updateAudioUI("---", "---", "IDLE");
+            ['server', 'arduino', 'audio'].forEach(id => {
+                updateCheckUI(id, 'WAIT', 'WAIT...');
+            });
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                updateCheckUI('server', 'OK', "CONNESSO");
             }
         }
 
-        function addRawLog(text) {
-            const d = document.createElement('div');
-            d.textContent = text;
-            rawTerminal.appendChild(d);
-            rawTerminal.scrollTop = rawTerminal.scrollHeight;
-            if (rawTerminal.children.length > 200) {
-                rawTerminal.removeChild(rawTerminal.children[0]);
-            }
+        function log(msg) {
+            console.log(msg);
         }
 
-        function toggleTerminal() {
-            rawTerminal.classList.toggle('open');
-            const icon = document.getElementById('terminal-toggle-icon');
-            icon.innerText = rawTerminal.classList.contains('open') ? '▼' : '▲';
+        function toggleConsole() {
+            const pane = document.getElementById('console-subpane');
+            pane.classList.toggle('collapsed');
         }
 
-        function setRunning(running) {
-            isRunning = running;
-            if (running) {
-                btnStart.disabled = true;
-                btnStart.innerHTML = "<span>IN ESECUZIONE...</span><svg width='20' height='20' class='animate-pulse'><use href='#icon-activity'/></svg>";
-            } else {
-                btnStart.disabled = false;
-                btnStart.innerHTML = "<span>INIZIA</span><svg width='20' height='20'><use href='#icon-play'/></svg>";
-                // Reimposta bottone stop dopo qualche secondo
-                setTimeout(() => {
-                    // reset logic if needed
-                }, 1000);
-            }
+        function setStatus(s) {
+            dom.status.innerText = s;
         }
 
-        async function startExperience() {
-            if (isRunning) return;
-            // Optimistic UI
-            setRunning(true);
-            clearTimeline();
-            addTimelineItem("cpu", "Comando Inviato", "Richiesta avvio server...", "REQ");
-
-            try {
-                const res = await fetch('/api/start', { method: 'POST' });
-                const data = await res.json();
-                if (!data.success) {
-                    addTimelineItem("error", "Errore Avvio", data.message, "FAIL");
-                    setRunning(false);
-                }
-            } catch (e) {
-                addTimelineItem("error", "Errore Rete", e.toString(), "NET");
-                setRunning(false);
-            }
+        function startTimer() {
+            startTime = Date.now();
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const diff = Math.floor((Date.now() - startTime) / 1000);
+                const m = Math.floor(diff / 60).toString().padStart(2, '0');
+                const s = (diff % 60).toString().padStart(2, '0');
+                dom.timer.innerText = `${m}:${s}`;
+            }, 1000);
         }
 
-        async function stopExperience() {
-            try {
-                await fetch('/api/stop', { method: 'POST' });
-                addTimelineItem("alert", "Stop Utente", "Richiesta arresto inviata", "USR");
-                setRunning(false);
-            } catch (e) {
-                console.error(e);
-            }
+        function stopTimer() {
+            clearInterval(timerInterval);
         }
 
-        connect();
+        init();
     </script>
 </body>
 

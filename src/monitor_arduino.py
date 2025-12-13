@@ -97,6 +97,17 @@ def main():
                         # Aggiungiamo un timestamp per lo storico
                         parsed["TIMESTAMP"] = time.time()
                         
+                        # [NEW] Evento Realtime per il Frontend
+                        # Stampa JSON su una singola riga per essere parsato dal server/frontend
+                        try:
+                            realtime_msg = {
+                                "type": "DATA",
+                                "payload": parsed
+                            }
+                            print(json.dumps(realtime_msg), flush=True)
+                        except Exception as e:
+                            pass # Evita crash per log
+
                         with open(OUTPUT_FILE, "a") as f:
                             json.dump(parsed, f)
                             f.write('\n')

@@ -10,6 +10,9 @@ import os
 import sys
 import signal
 
+import json
+import fastapi.concurrency
+
 # Configurazione
 HOST = "0.0.0.0"
 PORT = 8000
@@ -19,17 +22,16 @@ WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
 
 # Mount Static Files
-# Assicurati di aver creato la cartella "static" (vedi sotto)
 app.mount("/static", StaticFiles(directory=os.path.join(WORKING_DIR, "static")), name="static")
 
 @app.get("/")
 async def read_index():
     return FileResponse(os.path.join(WORKING_DIR, "static/index.html"))
 
-# CORS per permettere alla web app (localhost:5173) di comunicare
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In produzione restringere
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,19 +44,32 @@ class ProcessManager:
         self.log_queue = queue.Queue()
         self.is_running = False
         self.stop_event = threading.Event()
+        
+        # State Cache for Reconnection
+        self.state = {
+            "last_phase": None,
+            "current_audio": None,
+            "last_data": None,
+            "is_started": False
+        }
 
     def start_process(self):
         if self.is_running and self.process and self.process.poll() is None:
             return False, "Processo già attivo"
         
-        # Svuota la coda dei log vecchi
         with self.log_queue.mutex:
             self.log_queue.queue.clear()
             
         self.stop_event.clear()
         
-        # Avvia il processo main.py
-        # -u forza l'output non bufferizzato (importante per vedere i log in tempo reale)
+        # Reset State on Start
+        self.state = {
+            "last_phase": None,
+            "current_audio": None,
+            "last_data": None,
+            "is_started": True
+        }
+        
         cmd = [sys.executable, "-u", MAIN_SCRIPT]
         
         try:
@@ -62,13 +77,12 @@ class ProcessManager:
                 cmd,
                 cwd=WORKING_DIR,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, # Cattura anche gli errori
+                stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1 # Line buffered
+                bufsize=1
             )
             self.is_running = True
             
-            # Thread per leggere l'output
             t = threading.Thread(target=self._read_output, daemon=True)
             t.start()
             
@@ -79,20 +93,19 @@ class ProcessManager:
     def stop_process(self):
         if self.process and self.process.poll() is None:
             self.stop_event.set()
-            # Manda SIGTERM
             self.process.terminate()
             try:
                 self.process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                self.process.kill() # Forza kill se non risponde
+                self.process.kill()
             
             self.is_running = False
             self.process = None
+            self.state["is_started"] = False # Reset flag
             return True, "Processo terminato"
         return False, "Nessun processo attivo"
 
     def _read_output(self):
-        """Legge stdout del processo e lo mette in coda"""
         if not self.process:
             return
 
@@ -100,6 +113,22 @@ class ProcessManager:
             if self.stop_event.is_set():
                 break
             if line:
+                # 1. Update Cache Logic
+                try:
+                    if line.strip().startswith('{'):
+                        data = json.loads(line)
+                        evt_type = data.get("type")
+                        
+                        if evt_type == "PHASE":
+                            self.state["last_phase"] = data
+                        elif evt_type == "DATA":
+                            self.state["last_data"] = data
+                        elif evt_type == "STEP" and data.get("category") == "AUDIO":
+                            self.state["current_audio"] = data
+                except Exception:
+                    pass
+                
+                # 2. Enqueue for Streaming
                 self.log_queue.put(line)
         
         self.process.stdout.close()
@@ -121,24 +150,28 @@ def stop_experience():
 @app.websocket("/ws/logs")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    
+    # 1. Send Initial State Sync
+    try:
+        if manager.state["is_started"]:
+            sync_pkg = json.dumps({"type": "SYNC", "payload": manager.state})
+            await websocket.send_text(sync_pkg)
+    except Exception:
+        pass
+
     try:
         while True:
-            # Non-blocking get dalla coda
             try:
-                # Prende tutti i log disponibili
                 lines = []
                 while not manager.log_queue.empty():
                     lines.append(manager.log_queue.get_nowait())
                 
                 if lines:
-                    # Invia come unico blocco di testo o lista
                     await websocket.send_text("".join(lines))
                 
-                # Piccola pausa per non saturare la CPU
                 await fastapi.concurrency.run_in_threadpool(time.sleep, 0.1)
                 
             except Exception as e:
-                # Se la connessione cade
                 break
     except Exception:
         pass
