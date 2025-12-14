@@ -612,9 +612,14 @@
                 updateLiveData(evt.payload);
             }
             else if (evt.type === 'CHECK') {
-                const map = { 'AUDIO_FILES': 'audio', 'ARDUINO': 'arduino', 'DB_CONNECTION': 'server' };
+                const map = { 
+                    'AUDIO_FILES': 'audio', 
+                    'AUDIO': 'audio',
+                    'ARDUINO': 'arduino', 
+                    'DB_CONNECTION': 'server' 
+                };
                 if (map[evt.component]) {
-                    updateCheckUI(map[evt.component], evt.status === 'OK' ? 'OK' : 'ERR', evt.status);
+                    updateCheckUI(map[evt.component], evt.status === 'OK' ? 'OK' : 'ERR', evt.detail || evt.status);
                 }
             }
             else if (evt.type === 'STEP') {

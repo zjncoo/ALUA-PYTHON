@@ -78,6 +78,15 @@ def main():
         time.sleep(2) # Attesa reset Arduino
         print("Connesso! In attesa di dati...")
         
+        # [WEB SERVER] Emit connection success event
+        check_event = {
+            "type": "CHECK",
+            "component": "ARDUINO",
+            "status": "OK",
+            "detail": "Serial Connected"
+        }
+        print(json.dumps(check_event), flush=True)
+        
         while True:
             if ser.in_waiting > 0:
                 try:
@@ -122,6 +131,15 @@ def main():
     except serial.SerialException as e:
         print(f"Impossibile aprire {SERIAL_PORT}: {e}")
         print("Controlla che il cavo sia collegato e la porta sia corretta.")
+        
+        # [WEB SERVER] Emit connection error event
+        error_event = {
+            "type": "CHECK",
+            "component": "ARDUINO",
+            "status": "ERR",
+            "detail": f"Connection Failed: {str(e)[:50]}"
+        }
+        print(json.dumps(error_event), flush=True)
 
 if __name__ == "__main__":
     main()

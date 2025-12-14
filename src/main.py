@@ -145,6 +145,16 @@ def main():
     print(json.dumps({"type": "CHECK", "component": "AUDIO_FILES", "status": "OK", "detail": f"{len(AUDIO_FILES)} files check"}), flush=True)  # [WEB SERVER]
     print(json.dumps({"type": "CHECK", "component": "DB_CONNECTION", "status": "OK", "detail": "JSONL Ready"}), flush=True)  # [WEB SERVER]
     
+    # Check audio system (afplay availability)
+    try:
+        result = subprocess.run(["which", "afplay"], capture_output=True, text=True, check=True)
+        if result.returncode == 0:
+            print(json.dumps({"type": "CHECK", "component": "AUDIO", "status": "OK", "detail": "afplay available"}), flush=True)
+        else:
+            print(json.dumps({"type": "CHECK", "component": "AUDIO", "status": "ERR", "detail": "afplay not found"}), flush=True)
+    except subprocess.CalledProcessError:
+        print(json.dumps({"type": "CHECK", "component": "AUDIO", "status": "ERR", "detail": "afplay not found"}), flush=True)
+    
     # ========================================
     # FASE PRE-MONITORAGGIO
     # ========================================
@@ -217,8 +227,8 @@ def main():
     # TRIGGER PER SECONDA FASE
     # ========================================
     
-    # Dopo audio 09, aspetta 2 secondi come da specifiche
-    time.sleep(2)
+    # Dopo audio 09, aspetta 1 secondo come da specifiche
+    time.sleep(1)
     
     print(json.dumps({"type": "PHASE", "name": "ANALISI TRIGGER", "next": "SECONDA FASE"}), flush=True)  # [WEB SERVER]
     # Avvio monitoraggio PRIMA dell'audio 10 (per evitare ritardi apertura porta)
