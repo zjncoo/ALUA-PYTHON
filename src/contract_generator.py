@@ -83,6 +83,13 @@ def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disabl
     """
     Disegna le clausole direttamente sul PDF gestendo formattazione mista e layout specifico.
     Supporta multi-pagina con bordo costante.
+    
+    [LOGICA CLAUSOLE]:
+    1. Le clausole sono definite in contract_data.py
+    2. Vengono filtrate in base alle "active_types" (Relazioni selezionate coi bottoni: Amicale, Romantica, ecc.)
+    3. Per ogni relazione, c'è una logica CUMULATIVA basata sulla FASCIA di rischio (1-4):
+       - Se Fascia 4, includiamo le clausole di Fascia 1, 2, 3 e 4.
+       - Questo crea un contratto più lungo e restrittivo man mano che il rischio sale.
     """
     
     # Parametri grafici
@@ -173,9 +180,12 @@ def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disabl
 
     # 1. CLAUSOLE RISCHIO BASE (DISPOSIZIONI GENERALI)
     # [REMOVED] Sezione Rimossa su richiesta utente
-    pass
+    # 1. CLAUSOLE RISCHIO BASE (DISPOSIZIONI GENERALI)
+    # [REMOVED] Sezione Rimossa su richiesta utente
+
     
     # 2. CLAUSOLE RELAZIONE SPECIFICHE
+    # Iteriamo su tutte le relazioni attivate dai bottoni (es. "AMICALE", "LAVORATIVA")
     for rel_type in active_types:
         r_data = RELATIONSHIP_CLAUSES.get(rel_type)
         if not r_data: continue
@@ -197,11 +207,12 @@ def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disabl
             pdf.multi_cell(w_text, line_h, r_data['intro_text'], align='J') 
             pdf.ln(3) # Reduced from 5
 
-        # C. CLAUSOLE FLAT
+        # C. CLAUSOLE FLAT (Sempre presenti per questa relazione, indipendentemente dal rischio)
         if r_data.get('clauses'):
             print_clause_list(r_data['clauses'])
             
-        # D. CLAUSOLE TIERED (Cumulative)
+        # D. CLAUSOLE TIERED (Cumulative in base al Rischio)
+        # Se siamo in Fascia X, stampiamo tutte le clausole da Livello 1 a Livello X
         if r_data.get('levels'):
              for level in range(1, risk_level + 1):
                 l_data = r_data['levels'].get(level)
@@ -616,8 +627,7 @@ def genera_pdf_contratto_A4(dati):
     pdf.cell(px(300), 4, f"{contract_id}", ln=1, align='L')
     pdf.set_text_color(0, 0, 0)
 
-    # F. GRAFICO (Legacy Removed) - Use F. CONDUTTANZA VECTOR above
-    pass
+
 
     # H. NOTA ROSSA
     anello = elaborati.get('anello_debole', {})

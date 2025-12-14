@@ -85,7 +85,8 @@ def main():
             "status": "OK",
             "detail": "Serial Connected"
         }
-        print(json.dumps(check_event), flush=True)
+        print(json.dumps(check_event), flush=True) # [WEB SERVER] - Invia stato connessione 
+
         
         while True:
             if ser.in_waiting > 0:
@@ -113,7 +114,8 @@ def main():
                                 "type": "DATA",
                                 "payload": parsed
                             }
-                            print(json.dumps(realtime_msg), flush=True)
+                            print(json.dumps(realtime_msg), flush=True) # [WEB SERVER] - Invia dati live
+
                         except Exception as e:
                             pass # Evita crash per log
 
@@ -139,7 +141,8 @@ def main():
             "status": "ERR",
             "detail": f"Connection Failed: {str(e)[:50]}"
         }
-        print(json.dumps(error_event), flush=True)
+        print(json.dumps(error_event), flush=True) # [WEB SERVER] - Invia errore connessione
+
 
 if __name__ == "__main__":
     main()

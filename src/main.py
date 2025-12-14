@@ -39,11 +39,11 @@ phase2_start_time = None
 def play_audio(file_path, audio_name=""):
     """Riproduce un file audio usando 'afplay' (macOS) e attende la fine."""
     print(f"[AUDIO] Riproduzione audio {audio_name}: {file_path}...")
-    print(json.dumps({"type": "STEP", "category": "AUDIO", "status": "RUNNING", "detail": audio_name}), flush=True)  # [WEB SERVER]
+    print(json.dumps({"type": "STEP", "category": "AUDIO", "status": "RUNNING", "detail": audio_name}), flush=True)  # [WEB SERVER] - Aggiorna lo stato dell'audio corrente
     try:
         subprocess.run(["afplay", file_path], check=True)
         print(f"[OK] Audio {audio_name} completato")
-        print(json.dumps({"type": "STEP", "category": "AUDIO", "status": "DONE", "detail": audio_name}), flush=True)  # [WEB SERVER]
+        print(json.dumps({"type": "STEP", "category": "AUDIO", "status": "DONE", "detail": audio_name}), flush=True)  # [WEB SERVER] - Segnala fine audio
     except subprocess.CalledProcessError as e:
         print(f"[ERRORE] Riproduzione audio {file_path}: {e}")
     except FileNotFoundError:
@@ -142,8 +142,8 @@ def main():
     clean_data_file()
     
     # [NEW] SYSTEM CHECK INIZIALE
-    print(json.dumps({"type": "CHECK", "component": "AUDIO_FILES", "status": "OK", "detail": f"{len(AUDIO_FILES)} files check"}), flush=True)  # [WEB SERVER]
-    print(json.dumps({"type": "CHECK", "component": "DB_CONNECTION", "status": "OK", "detail": "JSONL Ready"}), flush=True)  # [WEB SERVER]
+    print(json.dumps({"type": "CHECK", "component": "AUDIO_FILES", "status": "OK", "detail": f"{len(AUDIO_FILES)} files check"}), flush=True)  # [WEB SERVER] - Invia stato check file audio
+    print(json.dumps({"type": "CHECK", "component": "DB_CONNECTION", "status": "OK", "detail": "JSONL Ready"}), flush=True)  # [WEB SERVER] - Invia connessione DB
     
     # Check audio system (afplay availability)
     try:
@@ -160,7 +160,8 @@ def main():
     # ========================================
     
     # Audio 01
-    print(json.dumps({"type": "PHASE", "name": "PRE-MONITORAGGIO", "next": "PRIMA FASE"}), flush=True)  # [WEB SERVER]
+    # Audio 01
+    print(json.dumps({"type": "PHASE", "name": "PRE-MONITORAGGIO", "next": "PRIMA FASE"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     play_audio(AUDIO_FILES["01"], "01")
     time.sleep(1)
     
@@ -172,7 +173,7 @@ def main():
     # PRIMA FASE DI MONITORAGGIO
     # ========================================
     
-    print(json.dumps({"type": "PHASE", "name": "PRIMA FASE", "next": "TRANSIZIONE"}), flush=True)  # [WEB SERVER]
+    print(json.dumps({"type": "PHASE", "name": "PRIMA FASE", "next": "TRANSIZIONE"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     # Avvio prima fase di monitoraggio Arduino (PRIMA dell'audio 03)
     # In questo modo quando inizia l'audio la porta è già aperta
     start_arduino_monitoring("PRIMA FASE")
@@ -211,7 +212,7 @@ def main():
     
     time.sleep(1)
     
-    print(json.dumps({"type": "PHASE", "name": "TRANSIZIONE", "next": "TRIGGER CHECK"}), flush=True)  # [WEB SERVER]
+    print(json.dumps({"type": "PHASE", "name": "TRANSIZIONE", "next": "TRIGGER CHECK"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     # Audio 07
     play_audio(AUDIO_FILES["07"], "07")
     time.sleep(1)
@@ -230,7 +231,7 @@ def main():
     # Dopo audio 09, aspetta 1 secondo come da specifiche
     time.sleep(1)
     
-    print(json.dumps({"type": "PHASE", "name": "ANALISI TRIGGER", "next": "SECONDA FASE"}), flush=True)  # [WEB SERVER]
+    print(json.dumps({"type": "PHASE", "name": "ANALISI TRIGGER", "next": "SECONDA FASE"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     # Avvio monitoraggio PRIMA dell'audio 10 (per evitare ritardi apertura porta)
     start_arduino_monitoring("TRIGGER CHECK")
     
@@ -262,7 +263,7 @@ def main():
     print("=== AVVIO SECONDA FASE MONITORAGGIO (45 secondi) ===")
     print("="*60 + "\n")
     
-    print(json.dumps({"type": "PHASE", "name": "SECONDA FASE", "next": "ELABORAZIONE"}), flush=True)  # [WEB SERVER]
+    print(json.dumps({"type": "PHASE", "name": "SECONDA FASE", "next": "ELABORAZIONE"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     start_arduino_monitoring("SECONDA FASE")
     phase2_start_time = time.time()
     
@@ -303,7 +304,7 @@ def main():
     # ELABORAZIONE DATI E GENERAZIONE CONTRATTO
     # ========================================
     
-    print(json.dumps({"type": "PHASE", "name": "ELABORAZIONE", "next": "OUTRO"}), flush=True)  # [WEB SERVER]
+    print(json.dumps({"type": "PHASE", "name": "ELABORAZIONE", "next": "OUTRO"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     print("[PROCESS] Elaborazione dati...")
     try:
         subprocess.run([sys.executable, "process_data.py"], check=True)
