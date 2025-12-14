@@ -348,11 +348,15 @@ def processa_dati(data_list):
         # In questo caso, per avere comunque un risultato:
         # - usiamo l'ULTIMO campione dell'intera lista per calcolare i parametri statici
         #   (bottoni e slider, quindi RELAZIONI_Px e SLIDERx)
-        static_sample = data_list[-1]
+        last_idx = len(data_list) - 1
+        
+        # - usiamo la ricerca globale per trovare i bottoni attivi ovunque siano
+        static_sample = find_best_relationship_sample(data_list)
+        
         # - usiamo tutta la lista per l'analisi SCL (Fase 2 "fittizia").
         #   Quindi consideriamo come se tutta la registrazione fosse Fase 2.
         phase2_list = data_list
-        log.warning("Nessun gap rilevato tra le fasi. Uso l'ultimo campione per bottoni/slider.")
+        log.warning("Nessun gap rilevato tra le fasi. Uso il miglior sample trovato per bottoni/slider.")
 
     # 4) CASO B: GAP TROVATO → SPLIT FASE 1 / FASE 2
     else:
@@ -365,9 +369,22 @@ def processa_dati(data_list):
         #   - relazioni (bottoni)
         #   - valori slider
         static_sample_idx = split_index - 1
-        static_sample = data_list[static_sample_idx]
+        
+        # [ROBUSTNESS FIX]
+        # Invece di usare logiche complesse di "scan backwards" limitato,
+        # usiamo la funzione globale che cerca il MIGLIOR sample in assoluto nella lista.
+        # Questo garantisce che se c'è un bottone premuto da qualche parte, lo troviamo.
+        
+        static_sample = find_best_relationship_sample(data_list[:split_index]) # Cerchiamo preferibilmente nella prima fase
+        if not (static_sample.get("RELAZIONI_P0") or static_sample.get("RELAZIONI_P1")):
+            # Se non troviamo nulla prima dello split, cerchiamo ovunque
+             static_sample = find_best_relationship_sample(data_list)
+             
+        log.debug(f"Static Sample scelto tramite Global Best Search")
 
         # Tutti i campioni da split_index in poi sono la Fase 2,
+        # su cui analizzeremo il trend di SCL (arousal).
+        phase2_list = data_list[split_index:]
         # su cui analizzeremo il trend di SCL (arousal).
         phase2_list = data_list[split_index:]
 
@@ -428,6 +445,24 @@ def processa_dati(data_list):
 
 
 
+
+# HELPER: Trova il miglior sample per le relazioni (indipendente dalle fasi)
+def find_best_relationship_sample(data_list):
+    """
+    Cerca in tutta la lista il sample con informazioni sulle relazioni.
+    Strategia: 
+    1. Cerca l'ultimo sample che ha relazioni attive (P0 o P1).
+    2. Se non ne trova, ritorna l'ultimo sample disponibile.
+    """
+    if not data_list: return {}
+    
+    # Scansioniamo all'indietro
+    for i in range(len(data_list) - 1, -1, -1):
+        s = data_list[i]
+        if s.get("RELAZIONI_P0") or s.get("RELAZIONI_P1"):
+            return s
+            
+    return data_list[-1]
 
 def generate_unique_id():
     """Genera un ID univoco di 9 caratteri alfanumerici (es. Y7K9M2X1P)."""
@@ -536,6 +571,18 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         _, max_val_graph = conductance_graph.genera_grafico_conduttanza(storico_tuple, path_graph)
         assets["graph"] = path_graph
         assets["max_conductance"] = max_val_graph
+        
+        # [VECTOR] Get raw data
+        # Note: get_conductance_data_points reads directly from JSONL file in its implementation
+        vec_a, vec_b, max_v_vec = conductance_graph.get_conductance_data_points()
+        # [FIX] User reported A/B are inverted. Swapping them here.
+        # Now: Series A (Solid) = vec_b (SCL1)
+        #      Series B (Dashed) = vec_a (SCL0)
+        assets["conductance_vector"] = {
+            "series_a": vec_b, 
+            "series_b": vec_a,
+            "max_val": max_v_vec
+        }
     except Exception as e:
         log.error(f"Errore Graph: {e}")
 
@@ -646,15 +693,20 @@ def prepara_dati_per_contratto(data_list, result_pacchetto, assets):
     """
     elab = result_pacchetto.get("elaborati", {})
     
-    # Recuperiamo le relazioni dall'ultimo sample (statico)
-    static_sample = data_list[-1] if data_list else {}
-    p0_labels = static_sample.get("RELAZIONI_P0", [])
-    p1_labels = static_sample.get("RELAZIONI_P1", [])
+    # Recuperiamo le relazioni direttamente dal pacchetto (Static Sample unificato)
+    # Questo garantisce che Visuals e Contract usino LO STESSO sample.
+    best_sample = result_pacchetto.get("static_sample", {})
+    if not best_sample:
+         # Fallback difensivo
+         best_sample = find_best_relationship_sample(data_list)
+    
+    p0_labels = best_sample.get("RELAZIONI_P0", [])
+    p1_labels = best_sample.get("RELAZIONI_P1", [])
     
     # Unione unica delle relazioni
     raw_types = list(set(p0_labels + p1_labels))
-
-    # Mappatura diretta (nessuna traduzione necessaria, contract_generator aggiornato)
+    
+    # Mappatura diretta (nessuna traduzione necessaria)
     mapped_types = raw_types
     
     # Remove duplicates

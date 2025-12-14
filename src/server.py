@@ -18,6 +18,7 @@ HOST = "0.0.0.0"
 PORT = 8000
 MAIN_SCRIPT = "main.py"
 WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(WORKING_DIR, "../data/arduino_data.jsonl") # NEW
 
 app = FastAPI()
 
@@ -44,12 +45,14 @@ class ProcessManager:
         self.log_queue = queue.Queue()
         self.is_running = False
         self.stop_event = threading.Event()
+        self.data_thread = None # NEW
         
         # State Cache for Reconnection
         self.state = {
             "last_phase": None,
             "current_audio": None,
             "last_data": None,
+            "checks": {},
             "is_started": False
         }
 
@@ -67,6 +70,7 @@ class ProcessManager:
             "last_phase": None,
             "current_audio": None,
             "last_data": None,
+            "checks": {},
             "is_started": True
         }
         
@@ -83,8 +87,13 @@ class ProcessManager:
             )
             self.is_running = True
             
+            # Start Stdout Reader
             t = threading.Thread(target=self._read_output, daemon=True)
             t.start()
+            
+            # Start Data File Watcher
+            self.data_thread = threading.Thread(target=self._watch_data_file, daemon=True)
+            self.data_thread.start()
             
             return True, "Processo avviato"
         except Exception as e:
@@ -101,9 +110,73 @@ class ProcessManager:
             
             self.is_running = False
             self.process = None
-            self.state["is_started"] = False # Reset flag
+            self.state["is_started"] = False
+            
+            if self.data_thread:
+                self.data_thread.join(timeout=1)
+                self.data_thread = None
+                
             return True, "Processo terminato"
         return False, "Nessun processo attivo"
+
+    def _watch_data_file(self):
+        """Monitors the data file for new lines (tail -f)"""
+        # Wait for file to be created/recreated by main script
+        while not self.stop_event.is_set():
+            if os.path.exists(DATA_FILE):
+                break
+            time.sleep(0.5)
+            
+        if self.stop_event.is_set():
+            return
+
+        current_file = open(DATA_FILE, 'r')
+        # Optional: Seek to end if you only want new data
+        # current_file.seek(0, 2)
+
+        try:
+            while not self.stop_event.is_set():
+                # 1. Read Line
+                line = current_file.readline()
+                
+                if line:
+                    try:
+                        payload = json.loads(line)
+                        data_event = {"type": "DATA", "payload": payload}
+                        self.state["last_data"] = data_event
+                        self.log_queue.put(json.dumps(data_event) + "\n")
+                    except json.JSONDecodeError:
+                        pass
+                else:
+                    # 2. No new line, check for rotation/truncation
+                    time.sleep(0.1)
+                    try:
+                        # Check if file still exists
+                        if not os.path.exists(DATA_FILE):
+                            current_file.close()
+                            # Wait for recreation
+                            while not os.path.exists(DATA_FILE) and not self.stop_event.is_set():
+                                time.sleep(0.1)
+                            if self.stop_event.is_set(): break
+                            current_file = open(DATA_FILE, 'r')
+                            continue
+
+                        # Check for truncation (size < current position)
+                        curr_pos = current_file.tell()
+                        stats = os.stat(DATA_FILE)
+                        if getattr(stats, 'st_size', 0) < curr_pos:
+                            print("[SYSTEM] Destinazione troncata. Riavvolgimento...")
+                            current_file.seek(0)
+                            
+                    except Exception as e:
+                        print(f"[SYSTEM] Errore monitoraggio file: {e}")
+                        break
+                        
+        except Exception as e:
+            self.log_queue.put(f"[SYSTEM] Error reading data file: {e}\n")
+        finally:
+            if current_file and not current_file.closed:
+                current_file.close()
 
     def _read_output(self):
         if not self.process:
@@ -121,10 +194,17 @@ class ProcessManager:
                         
                         if evt_type == "PHASE":
                             self.state["last_phase"] = data
-                        elif evt_type == "DATA":
-                            self.state["last_data"] = data
+                        # Note: We now get DATA from file, but if main.py still emits it, we overwrite
+                        elif evt_type == "DATA": 
+                             # Prefer file data, ignore stdout DATA if possible to avoid dupes/race
+                             # self.state["last_data"] = data
+                             pass 
                         elif evt_type == "STEP" and data.get("category") == "AUDIO":
                             self.state["current_audio"] = data
+                        elif evt_type == "CHECK":
+                            comp = data.get("component")
+                            if comp:
+                                self.state["checks"][comp] = data
                 except Exception:
                     pass
                 

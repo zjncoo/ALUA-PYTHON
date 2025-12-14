@@ -1,6 +1,12 @@
 from fpdf import FPDF
 import os
 from datetime import datetime
+import sys
+
+# Add src directory to path to allow importing contract_data
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from contract_data import RELATIONSHIP_CLAUSES
+from contract_blocks import qrcode_generator # [NEW] Import for vector QRtime
 
 """
 Modulo per la generazione del PDF del contratto in formato A4.
@@ -42,17 +48,18 @@ LAYOUT = {
     'QRCode': { 'x': 2155, 'y': 2770, 'w': 209, 'h': 209 },
 
     # 4. VISUALIZZAZIONE bottoni + slider
-    'Pezzo_P0': { 'x': 83, 'y': 443, 'w': 767 }, 
+    'Pezzo_P0': { 'x': 88, 'y': 443, 'w': 767 }, 
 
     # 5. VISUALIZZAZIONE bottoni + slider
-    'Pezzo_P1': { 'x': 1655, 'y': 439, 'w': 767 },
+    'Pezzo_P1': { 'x': 1656, 'y': 439, 'w': 767 },
     
     # 6. HEADER (Data e ID contratto)
-    'Header_Data': { 'x': 65, 'y': 173 },
-    'Header_ID':   { 'x': 350, 'y': 87 },
+    'Header_Data': { 'x': 58, 'y': 169 }, # Raised by 4px (173 -> 169)
+    'Header_ID':   { 'x': 350, 'y': 83 },
 
     # 7. TESTO CLAUSOLE (blocco di testo lungo)
-    'Clausole': { 'x': 260, 'y': 2600, 'w_text': 1400, 'font_size': 10 },
+    # Start Y aumentato leggermente per spaziare meglio se necessario
+    'Clausole': { 'x': 260, 'y': 2550, 'w_text': 1400 },
 
     # 8. NOTA ROSSA (Anello debole / criticità)
     'Nota_Rossa': { 'x': 1852, 'y': 2366, 'w': 361, 'font_size': 12 },
@@ -71,111 +78,327 @@ LAYOUT = {
     'RiskPhrase': { 'x': 124, 'y': 2765, 'w': 1902, 'font_size': 15 }
 }
 
-# HELPER PER TESTO CLAUSOLE
-def genera_testo_clausole(tipi_attivi):
-
-    #Genera il testo descrittivo delle clausole in base ai "tipi di relazione" attivi.
+def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disable_pagination=True):
+    print(f"[DEBUG] draw_clauses called with risk={risk_level}, types={active_types}")
+    """
+    Disegna le clausole direttamente sul PDF gestendo formattazione mista e layout specifico.
+    Supporta multi-pagina con bordo costante.
+    """
     
+    # Parametri grafici
+    line_h = 4
     
-    # Frasi associate a ciascun tipo di relazione
-    mapping = {
-        "LAVORATIVA": "Collaborazione formale, efficienza prioritaria.",
-        "AMICALE": "Supporto reciproco, tempo non strutturato.",
-        "ROMANTICA": "Tensione attrattiva e vulnerabilità emotiva.",
-        "FAMILIARE": "Legame di appartenenza e obblighi impliciti.",
-        "CONOSCENZA": "Esplorazione preliminare.",
-        "CONVIVENZA": "Condivisione di spazi riservati."
-    }
-
-    # Costruiamo la frase concatenando i pezzi corrispondenti ai tipi attivi
-    testo = ""
-    for t in tipi_attivi:
-        testo += mapping.get(t, "") + " "
+    # Margini pagina (A4 210x297)
+    # Bordo a 8mm
+    # Testo a 13mm (8+5)
+    # Margini pagina (A4 210x297 o Custom)
+    # Bordo a 8mm
+    # Testo a 13mm (8+5)
+    page_h = pdf.h # Altezza dinamica
+    bottom_margin_limit = 20 # Lasciamo 20mm in fondo
     
-    return testo.strip()
+    # Function to draw border (we need to call it on every new page)
+    def draw_border(is_continuation=False):
+        # [LAYOUT FIX] 65px @ 300DPI ~= 5.5mm
+        border_margin = 5.5 
+        
+        if is_continuation:
+            # Se siamo su una nuova pagina generata automaticamente (page break), partiamo dall'alto standard
+            border_y = border_margin
+            border_h = page_h - (border_margin * 2)
+        else:
+            # PRIMA PAGINA (Continuo): Il bordo inizia dove iniziano le clausole
+            # start_y è circa 317mm.
+            # Riduciamo il padding superiore per avvicinarlo alla grafica (User Request)
+            border_top_padding = 2 # Era 5
+            border_y = start_y - border_top_padding
+            
+            # Altezza bordo = Altezza Pagina - Y Inizio - Margine Fondo ridotto
+            # User wants no useless space at bottom.
+            # We trust page_h is tight.
+            border_h = page_h - border_y - border_margin
+            
+        border_x = border_margin
+        border_w = 210 - (border_margin * 2)
+        
+        pdf.set_line_width(0.15) 
+        pdf.set_dash_pattern(dash=0.2, gap=0.8) 
+        # Rect usa coordinate assolute
+        pdf.rect(border_x, border_y, border_w, border_h)
+        pdf.set_dash_pattern() # Reset solid
 
-# MAIN ASSEMBLER: GENERAZIONE DEL PDF A4
+    # Helper per cambio pagina
+    # Helper per cambio pagina
+    def check_page_break(h_needed):
+        if disable_pagination: return # [FIX] Nel modo continuo (rotolo) ignoriamo i page breaks
+        
+        # Se superiamo il limite inferiore
+        if pdf.get_y() + h_needed > (page_h - bottom_margin_limit):
+            pdf.add_page()
+            draw_border(is_continuation=True)
+            pdf.set_y(20) # Margine alto nuova pagina
+            draw_border(is_continuation=True)
+            # Reset margini e posizione per la nuova pagina
+            pdf.set_left_margin(start_x)
+            pdf.set_right_margin(210 - (start_x + w_text))
+            pdf.set_y(20) # Ricominciamo dall'alto standard (es. 20mm)
+
+    # INIT
+    # Impostiamo margini per la prima pagina
+    pdf.set_left_margin(start_x)
+    pdf.set_right_margin(210 - (start_x + w_text))
+    pdf.set_y(start_y)
+    
+    # Disegniamo bordo sulla pagina corrente (che è appena stata creata fuori)
+    draw_border(is_continuation=False)
+    
+    # Helper per disegnare una lista di clausole
+    def print_clause_list(clauses_list):
+        for clause in clauses_list:
+            # Calcolo altezza approssimativa titolo + corpo
+            check_page_break(30) 
+            
+            # A. TITOLO (Art. X - Titolo)
+            pdf.set_font('BergenMono', 'B', 10) 
+            full_title = f"{clause['id']} - {clause['title']}"
+            pdf.multi_cell(w_text, line_h, full_title, align='L')
+            
+            pdf.set_y(pdf.get_y() + 0.5) # Reduced from 1
+            
+            # C. CORPO
+            pdf.set_font('BergenMono', '', 9) 
+            pdf.multi_cell(w_text, line_h, clause['text'], align='J') 
+            
+            pdf.ln(2) # Reduced from 4 (Clause-Clause gap)
+
+    # 1. CLAUSOLE RISCHIO BASE (DISPOSIZIONI GENERALI)
+    # [REMOVED] Sezione Rimossa su richiesta utente
+    pass
+    
+    # 2. CLAUSOLE RELAZIONE SPECIFICHE
+    for rel_type in active_types:
+        r_data = RELATIONSHIP_CLAUSES.get(rel_type)
+        if not r_data: continue
+
+        check_page_break(30) 
+        
+        # A. HEADER RELAZIONE (LEFT ALIGNED)
+        suffix = r_data.get('header_suffix', rel_type)
+        header_text = f"PROCEDURA REGOLAMENTAZIONE DELLA {suffix}"
+        
+        pdf.set_font('BergenMono', 'B', 16) 
+        pdf.multi_cell(w_text, 8, header_text, align='L') 
+        pdf.ln(1) # Reduced from 3
+        
+        # B. INTRO
+        if r_data.get('intro_text'):
+            check_page_break(20) 
+            pdf.set_font('BergenMono', '', 10) 
+            pdf.multi_cell(w_text, line_h, r_data['intro_text'], align='J') 
+            pdf.ln(3) # Reduced from 5
+
+        # C. CLAUSOLE FLAT
+        if r_data.get('clauses'):
+            print_clause_list(r_data['clauses'])
+            
+        # D. CLAUSOLE TIERED (Cumulative)
+        if r_data.get('levels'):
+             for level in range(1, risk_level + 1):
+                l_data = r_data['levels'].get(level)
+                if not l_data: continue
+                
+                check_page_break(15)
+                # Titolo Livello Relazione
+                pdf.set_font('BergenMono', 'B', 12)
+                pdf.cell(w_text, 6, f"FASCIA {level}: {l_data['title']}", ln=1, align='L')
+                
+                if l_data.get('subtitle'):
+                    pdf.set_font('BergenMono', '', 10) 
+                    pdf.multi_cell(w_text, 5, l_data['subtitle'], align='L')
+                    
+                pdf.ln(1) # Reduced from 3
+                print_clause_list(l_data.get('clauses', []))
+                pdf.ln(1) # Reduced from 3
+
+        pdf.ln(5) # Reduced from 8 (Section-Section gap)
+
+    # Ripristino margini standard (0)
+    pdf.set_left_margin(0)
+    pdf.set_right_margin(0)
+
+    pdf.set_right_margin(0)
+
+
+def draw_safe_polyline(pdf, points):
+    """
+    Disegna una polilinea continua usando operatori PDF raw.
+    Necessario per fare in modo che il pattern tratteggiato (dash) 
+    segua la curva uniformemente invece di resetarsi a ogni segmento.
+    
+    points: lista di tuple (x, y) in mm.
+    """
+    if not points: return
+    
+    # Recuperiamo fattore di scala k e altezza pagina h dal wrapper FPDF
+    # FPDF.line fa: out(sprintf('%.2f %.2f m %.2f %.2f l S', x1*k, (h-y1)*k, x2*k, (h-y2)*k))
+    k = pdf.k
+    h = pdf.h
+    
+    # Costruiamo lo stream di operatori
+    ops = []
+    
+    # 1. Move to Start
+    x0, y0 = points[0]
+    ops.append(f"{x0*k:.2f} {(h-y0)*k:.2f} m")
+    
+    # 2. Line to subsequent points
+    for x, y in points[1:]:
+        ops.append(f"{x*k:.2f} {(h-y)*k:.2f} l")
+        
+    # 3. Stroke Path
+    ops.append("S")
+    
+    # Scriviamo direttamente nello stream
+    s = " ".join(ops)
+    pdf._out(s)
+
+
+# HELPER CALCOLO ALTEZZA TOTALE (Per Thermal Roll)
+def calculate_required_height(w_txt, risk_lvl, types):
+    # [LAYOUT UPDATE] Updated to reflect tighter spacing
+    total_h = 0
+    font_size = 9 # Approx body font size
+    chars_per_line = 95 # Approx for w_text ~ 190mm
+    line_h_mm = 4 
+    
+    # Spazio iniziale (Header pag 2)
+    total_h += 20 
+
+    for t in types:
+        rd = RELATIONSHIP_CLAUSES.get(t)
+        if not rd: continue
+        
+        # Header Relazione "PROCEDURA..." (16pt bold + ln(1))
+        # 8mm height + 1mm gap = 9mm
+        total_h += 9 + 4 # Safety buffer
+        
+        if rd.get('intro_text'): 
+            # Intro: 10pt (larger), ln(3) gap
+            text_len = len(rd['intro_text'])
+            est_lines = (text_len / 85) + 1
+            est_h_mm = est_lines * 5 # 5mm line height for larger font
+            total_h += est_h_mm + 3 + 2 # +ln(3) + safety
+        
+        # C. CLAUSOLE FLAT
+        if rd.get('clauses'):
+            for cl in rd.get('clauses'): 
+                # Title 10pt + 0.5 gap + Body 9pt + 2 gap
+                t_len = len(cl.get('text', ''))
+                est_lines = (t_len / chars_per_line) + 1
+                
+                # Title H (~5) + Gap (0.5) + Body H (lines*4) + Gap (2)
+                total_h += 5 + 0.5 + (est_lines * 4) + 2 + 1 
+        
+        # D. CLAUSOLE TIERED (Cumulative)
+        if rd.get('levels'):
+             for lvl in range(1, risk_lvl + 1):
+                ld = rd['levels'].get(lvl)
+                if not ld: continue
+                # Tier Header: "FASCIA X" 12pt + ln(1)
+                total_h += 6 + 1 
+                
+                if ld.get('subtitle'): 
+                    slen = len(ld['subtitle'])
+                    slines = (slen / chars_per_line) + 1
+                    total_h += (slines * 4) + 1 # + ln(1)
+                
+                for cl in ld.get('clauses', []):
+                    # Same calc as Flat
+                    t_len = len(cl.get('text', ''))
+                    est_lines = (t_len / chars_per_line) + 1
+                    total_h += 5 + 0.5 + (est_lines * 4) + 2 + 1
+                
+                total_h += 1 # End tier gap
+
+        total_h += 5 # Section gap (ln(5))
+
+    return total_h + 30 # Safety margin at bottom
+
+# MAIN ASSEMBLER: GENERAZIONE DEL PDF A4 (ADATTIVO PER ROTOLO)
 def genera_pdf_contratto_A4(dati):
 
     print("\n[CONTRACT GENERATOR] 📄 Inizio assemblaggio PDF (Layout Mode)...")
-    # Cartella base = directory del file corrente (che ora è src)
     base_dir = os.path.abspath(os.path.dirname(__file__))
-    # Dove salvare i PDF finali
     output_dir = os.path.join(base_dir, '../output/contracts')
-    # Dove si trovano template, font, ecc.
     assets_dir = os.path.join(base_dir, '../assets/contract_assets')
     
-    # Template grafico principale
     template_path = os.path.join(assets_dir, 'layout_contratto.png')
-    # Font monospazio usato per il contratto
-    font_path = os.path.join(assets_dir, 'BergenMono-Regular.ttf')
+    font_regular = os.path.join(assets_dir, 'BergenMono-Regular.ttf')
+    font_bold    = os.path.join(assets_dir, 'BergenMono-Bold.ttf')
 
-    # Controllo che il template esista
     if not os.path.exists(template_path):
         print(f"[ERROR] Manca il template: {template_path}")
         return None
     
-    # Creo la cartella di output se non esiste
     os.makedirs(output_dir, exist_ok=True)
 
-    # Setup PDF 
-    # PDF verticale (P), unità in mm, formato A4
+    # 1. ESTARZIONE DATI PER CALCOLO ALTEZZA
+    elaborati = dati.get('elaborati', {})
+    assets_data = dati.get('assets', {})
+    fascia = elaborati.get('fascia', 4)
+    tipi = elaborati.get('tipi_selezionati', [])
+    
+    # 1. SETUP PDF (STANDARD A4, PAGINATED)
     pdf = FPDF(orientation='P', unit='mm', format='A4')
-    pdf.set_auto_page_break(False)  # No auto page break per non spostare il layout
-    pdf.set_margins(0, 0, 0)        # Nessun margine: lavoriamo a piena pagina
+    pdf.set_auto_page_break(auto=True, margin=15) # Standard margin
+    pdf.set_compression(False) # [QUALITY FIX] Uncompressed PDF for max sharpness
     pdf.add_page()
     
-    # 1. Sfondo
-    # Calcoliamo l'altezza proporzionata rispetto alla larghezza A4
-    bg_height = py(PSD_HEIGHT)
-    # Posizioniamo il template come sfondo a partire da (0,0)
-    pdf.image(template_path, x=0, y=0, w=210, h=bg_height)
-    
-    # 2. Font
-    # Proviamo a usare il font custom; se fallisce, ripieghiamo su Courier
+    # 2. CARICAMENTO TEMPLATE BACKGROUND (Solo su pag 1)
+    if template_path and os.path.exists(template_path):
+        # A4 = 210x297
+        pdf.image(template_path, x=0, y=0, w=210, h=297)
+
+    # 3. SET WINDOW/VIEWPORT (Solo per pag 1 grafica)
+    # ... logic for graphical elements placement remains ...
+
+    # 5. FONT LOADING (Moved up to be available for all text)
     font_ok = False
-    if os.path.exists(font_path):
-        try:
-            # In FPDF2 serve il parametro fname per i font custom
-            pdf.add_font(family='BergenMono', style='', fname=font_path)
-            pdf.set_font('BergenMono', '', 12)
-            font_ok = True
-        except Exception as e:
-            print(f"[WARNING] Errore caricamento font BergenMono: {e}")
-            pdf.set_font('Courier', '', 12)
-    else:
+    try:
+        if os.path.exists(font_regular):
+            pdf.add_font(family='BergenMono', style='', fname=font_regular)
+        else:
+            print("[WARNING] Font Regular non trovato, fallback Courier")
+            
+        if os.path.exists(font_bold):
+            pdf.add_font(family='BergenMono', style='B', fname=font_bold)
+        else:
+            print("[WARNING] Font Bold non trovato.")
+        
+        pdf.set_font('BergenMono', '', 12)
+        font_ok = True
+    except Exception as e:
+        print(f"[WARNING] Errore caricamento font BergenMono: {e}")
         pdf.set_font('Courier', '', 12)
 
-    # Estraiamo i sotto-dizionari da `dati`
-    elaborati = dati.get('elaborati', {})
-    assets = dati.get('assets', {})
+    # 6. INSERIMENTO DATI NEL TEMPLATE (Parte Alta)
     
-    # A. LISSAJOUS (emblema grafico)
-    path_liss = assets.get('lissajous')
+    # A. LISSAJOUS
+    path_liss = assets_data.get('lissajous')
     if path_liss and os.path.exists(path_liss):
         c = LAYOUT['Lissajous']
-        pdf.image(
-            path_liss,
-            x=px(c['x']),
-            y=py(c['y']),
-            w=px(c['w']),
-            h=py(c['h'])
-        )
+        pdf.image(path_liss, x=px(c['x']), y=py(c['y']), w=px(c['w']), h=py(c['h']))
 
-    # B. PERCENTUALE DI COMPATIBILITÀ
+    # B. PERCENTUALE
     compat = elaborati.get('compatibilita')
     c = LAYOUT['Percentuale']
     pdf.set_font_size(c['font_size']) 
     pdf.set_xy(px(c['x']), py(c['y']))
-    # La cella contiene solo il numero, centrato
     pdf.cell(px(200), py(50), txt=f"{compat}", align='C')
 
     # B2. FASCIA DI RISCHIO
-    fascia = elaborati.get('fascia', 4)
-    # Conversione in numeri romani
     roman_map = {1: "I", 2: "II", 3: "III", 4: "IV"}
     fascia_str = roman_map.get(fascia, str(fascia))
-    
     c = LAYOUT['Fascia']
     pdf.set_font_size(c['font_size'])
     pdf.set_xy(px(c['x']), py(c['y']))
@@ -184,8 +407,6 @@ def genera_pdf_contratto_A4(dati):
     # B3. RISK LABEL & PRICE
     risk_label = elaborati.get('risk_label', "")
     risk_price = elaborati.get('risk_price', "")
-    
-    # Se il font custom non è caricato, sostituiamo caratteri non-Latin-1 (es. €)
     if not font_ok and risk_price:
         risk_price = risk_price.replace("€", " EUR")
     
@@ -201,268 +422,266 @@ def genera_pdf_contratto_A4(dati):
         pdf.set_xy(px(c['x']), py(c['y']))
         pdf.cell(px(c['w']), py(20), txt=f"{risk_price}", align='C')
 
-    # B4. RISK PHRASE (Testo descrittivo associato alla fascia)
-    # ---------------------------------------------------------------------------------
-    # [NEW FEATURE] RENDERING FRASE DI RISCHIO
-    # Questa sezione si occupa di stampare la frase descrittiva associata alla fascia di rischio.
-    # LOGICA:
-    # 1. Recupera la stringa 'risk_phrase' dal dizionario dati (popolato in process_data.py).
-    # 2. Configura il font a 15pt come richiesto.
-    # 3. Posiziona il cursore alle coordinate x=124, y=2765 (Bottom-Left).
-    # 4. Usa multi_cell per gestire il wrapping del testo su più righe se necessario.
-    # 5. Impone lo stile TUTTO MAIUSCOLO (.upper()) e un'interlinea ridotta (6mm).
-    # ---------------------------------------------------------------------------------
+    # B4. RISK PHRASE
     risk_phrase = elaborati.get('risk_phrase', "")
     if risk_phrase:
         c = LAYOUT['RiskPhrase']
         pdf.set_font_size(c['font_size'])
         pdf.set_xy(px(c['x']), py(c['y']))
-        # multi_cell per gestire testo lungo e wrapping
-        # Height 6mm per ridurre interlinea (font 15pt ~= 5.3mm)
-        # .upper() converte tutto in maiuscolo come richiesto
         pdf.multi_cell(px(c['w']), 6, txt=f"{risk_phrase}".upper(), align='L')
 
-    # =================================================================================
-    # B4. EVIDENZIATORE DINAMICO FASCIA DI RISCHIO (RISK HIGHLIGHT BOX)
-    # =================================================================================
-    # Questo blocco di codice si occupa di disegnare un rettangolo di evidenziazione
-    # attorno alla "Fascia di Rischio" corretta sul modulo del contratto.
-    #
-    # LOGICA DI POSIZIONAMENTO:
-    # L'area delle fasce di rischio è un blocco verticale diviso in 4 sezioni uguali.
-    # - Fascia 1 (Minimo)       : Sezione in ALTO
-    # - Fascia 2 (Moderato)     : Sezione MEDIO-ALTA
-    # - Fascia 3 (Significativo): Sezione MEDIO-BASSA
-    # - Fascia 4 (Catastrofico) : Sezione in BASSO
-    #
-    # COORDINATE (sistema di riferimento layout PSD 2481x3508):
-    # - X Iniziale      : 855 px (Allineato a sinistra del testo fascia)
-    # - Y Iniziale      : 2008 px (Inizio della fascia 1)
-    # - Larghezza (W)   : 793 px
-    # - Altezza Box     : 151 px (Specificato da utente)
-    # - Gap Verticale   : 20 px  (Tra un box e l'altro)
-    #
-    # STILE GRAFICO:
-    # - Colore: Nero (RGB 0,0,0)
-    # - Spessore linea: 5 px (calibrato per matchare la linea del grafico conduttanza ~0.42mm)
-    # - Riempimento: Nessuno (Trasparente)
-    # ---------------------------------------------------------------------------------
-    
-    # Coordinate base definite
+    # EVIDENZIATORE FASCIA RISCHIO
     risk_box_x = 855
-    risk_box_start_y = 2010 # REVERTED to original request
+    risk_box_start_y = 2010
     risk_box_w = 793
-    risk_box_h = 151    # Altezza esatta di ogni singolo quadrato
-    risk_box_gap = 22   # Distanza tra i quadrati
-
-    # Fascia è 1..4. Calcoliamo l'offset Y.
-    # Fascia 1 -> offset 0
-    # Fascia 2 -> offset 1 * (151 + 20)
+    risk_box_h = 151
+    risk_box_gap = 22
     if 1 <= fascia <= 4:
         offset_idx = fascia - 1
-        # Nuova formula con gap
         current_y = risk_box_start_y + (offset_idx * (risk_box_h + risk_box_gap))
-        
-        # Impostiamo linea e colore
-        # Richiesto: "spessi come la riga nel grafico"
-        # Il grafico usa linewidth=3.5 a 100DPI -> ~4.86 px
-        # Arrotondiamo a 5 px del layout PSD.
         pdf.set_line_width(px(5))
-        pdf.set_draw_color(0, 0, 0) # Nero
-        
-        # Disegno rettangolo (x, y, w, h)
-        # 'D' = Draw border only (no fill)
-        pdf.rect(
-            x=px(risk_box_x),
-            y=py(current_y),
-            w=px(risk_box_w),
-            h=py(risk_box_h),
-            style='D'
-        )
-        # Ripristino default line width (opzionale, ma buona prassi)
-        pdf.set_line_width(0.2) # Default FPDF circa 0.2 mm
-
+        pdf.set_draw_color(0, 0, 0)
+        pdf.rect(x=px(risk_box_x), y=py(current_y), w=px(risk_box_w), h=py(risk_box_h), style='D')
+        pdf.set_line_width(0.2)
 
     # C. QR CODE
-    path_qr = assets.get('qr_code')
-    if path_qr and os.path.exists(path_qr):
+    # [QUALITY FIX] Use Vector QR drawing instead of PNG for infinite resolution
+    if 'qr_link' in assets_data:
+        c = LAYOUT['QRCode'] # {'x': 2155, 'y': 2770, 'w': 209, 'h': 209} in Pixels
+        qr_x = px(c['x'])
+        qr_y = py(c['y'])
+        # Per width/height, px/py vanno bene se scalano solo. 
+        # px fa: (val / PSD_WIDTH) * 210. È una proporzione pura.
+        qr_sz = px(c['w']) 
+        qrcode_generator.draw_qr_vector(pdf, assets_data['qr_link'], qr_x, qr_y, qr_sz)
+    elif 'qr_code' in assets_data and os.path.exists(assets_data['qr_code']):
+        # Fallback to PNG if link is missing (legacy)
         c = LAYOUT['QRCode']
-        pdf.image(
-            path_qr,
-            x=px(c['x']),
-            y=py(c['y']),
-            w=px(c['w']),
-            h=py(c['h'])
-        )
+        qr_x = px(c['x'])
+        qr_y = py(c['y'])
+        qr_w = px(c['w'])
+        qr_h = py(c['h'])
+        pdf.image(assets_data['qr_code'], x=qr_x, y=qr_y, w=qr_w, h=qr_h)
 
-    # D. VISUALIZZAZIONE PEZZI (P0 e P1)
-    # Pezzo a sinistra (P0)
-    path_p0 = assets.get('pezzo_p0')
+    # D. PEZZI P0/P1
+    path_p0 = assets_data.get('pezzo_p0')
+    path_p1 = assets_data.get('pezzo_p1')
     if path_p0 and os.path.exists(path_p0):
         c = LAYOUT['Pezzo_P0']
-        pdf.image(
-            path_p0,
-            x=px(c['x']),
-            y=py(c['y']),
-            w=px(c['w'])
-        )
-    # Pezzo a destra (P1)
-    path_p1 = assets.get('pezzo_p1')
+        pdf.image(path_p0, x=px(c['x']), y=py(c['y']), w=px(c['w']))
     if path_p1 and os.path.exists(path_p1):
         c = LAYOUT['Pezzo_P1']
-        pdf.image(
-            path_p1,
-            x=px(c['x']),
-            y=py(c['y']),
-            w=px(c['w'])
-        )
+        pdf.image(path_p1, x=px(c['x']), y=py(c['y']), w=px(c['w']))
 
-    # E. HEADER (ID CONTRATTO + DATA)
-    pdf.set_font_size(10)
-
-    # Identificativo Contratto (Usiamo quello generato in process_data e salvato in assets, se presente)
-    # Altrimenti fallback (safety)
-    contract_id = dati.get('assets', {}).get('contract_id')
-    contract_date = dati.get('assets', {}).get('contract_date') # Recuperiamo la data sincronizzata
-    
-    if not contract_id:
-        contract_id = datetime.now().strftime("%Y%m%d-%H%M")
-    
-    if not contract_date:
-        contract_date = datetime.now().strftime('%d.%m.%Y')
-    
-    output_filename = f"Contract_{contract_id}.pdf"
-    output_path = os.path.join(output_dir, output_filename)
-    # Data
-    c = LAYOUT['Header_Data']
-    pdf.set_xy(px(c['x']), py(c['y']))
-    pdf.cell(px(300), 10, f"DATA: {contract_date}", ln=1, align='L')
-    
-    # ID contratto
-    c = LAYOUT['Header_ID']
-    pdf.set_font_size(8)
-    pdf.set_text_color(255, 255, 255) # Bianco
-    pdf.set_xy(px(c['x']), py(c['y']))
-    pdf.cell(px(300), 4, f"{contract_id}", ln=1, align='L')
-    pdf.set_text_color(0, 0, 0) # Reset Nero
-
-    # F. GRAFICO DELLA CONDUTTANZA
-    path_graph = assets.get('graph')
-    if path_graph and os.path.exists(path_graph):
-        c = LAYOUT['Graph']
-        pdf.image(
-            path_graph,
-            x=px(c['x']),
-            y=py(c['y']),
-            w=px(c['w']),
-            h=py(c['h'])
-        )
-    
-        # --- LABELING GRAFICO (MAX e MED) ---
-        # NOTE DI DESIGN:
-        # L'etichetta MAX deve essere posizionata a sinistra del grafico, esattamente a x=209 (coordinate layout).
-        # Il grafico conduttanza inizia a x=207.
-        # Le etichette sono allineate a destra (align='R') su x=209, quindi crescono verso sinistra nel margine bianco.
-        # Layout richiesto: 3 righe (Label, Valore, Unità) con interlinea ridotta.
+    # E. LISSAJOUS VECTOR
+    # [QUALITY FIX] Use Vector Lissajous if available
+    if 'lissajous_vector' in assets_data:
+        c = LAYOUT['Lissajous']
+        lx = px(c['x'])
+        ly = py(c['y'])
+        lw = px(c['w'])
+        lh = py(c['h'])
+        points = assets_data['lissajous_vector']
         
-        # LOGICA POSIZIONAMENTO Y:
-        # Il grafico conduttanza è generato con un padding superiore del 10% (ylim = max * 1.1).
-        # Pertanto il picco massimo visivo non tocca il bordo superiore dell'immagine, ma è al 90.9% dell'altezza (1.0/1.1).
-        # Calcoliamo le Y relative (in mm PDF) per allineare il testo esattamente all'altezza visiva del valore.
+        # Center coordinates
+        cx = lx + lw/2
+        cy = ly + lh/2
+        rx = lw/2
+        ry = lh/2
         
-        # Recuperiamo il valore numerico
-        max_val_graph = assets.get('max_conductance', 0)
+        pdf.set_draw_color(0, 0, 0)
+        pdf.set_line_width(0.8) # Approx 2-3 pixels visually
+        
+        # Draw curve segments
+        # Points are normalized [-1, 1], need to map to box
+        # Scale slightly down (0.95) to fit margin
+        scale_fact = 0.95
+        
+        if len(points) > 1:
+            for i in range(len(points) - 1):
+                p1 = points[i]
+                p2 = points[i+1]
+                
+                x1 = cx + (p1[0] * rx * scale_fact)
+                y1 = cy + (p1[1] * ry * scale_fact)
+                x2 = cx + (p2[0] * rx * scale_fact)
+                y2 = cy + (p2[1] * ry * scale_fact)
+                
+                pdf.line(x1, y1, x2, y2)
+                
+    elif assets_data.get('lissajous'):
+        # Fallback PNG
+        c = LAYOUT['Lissajous']
+        pdf.image(assets_data['lissajous'], x=px(c['x']), y=py(c['y']), w=px(c['w']), h=py(c['h']))
+
+
+    # F. CONDUTTANZA VECTOR
+    # [QUALITY FIX] Draw conductance lines as vector
+    if 'conductance_vector' in assets_data:
+        c = LAYOUT['Graph'] # Was 'Conductance' -> Error
+        gx = px(c['x'])
+        gy = py(c['y'])
+        gw = px(c['w'])
+        gh = py(c['h'])
+        
+        vec_data = assets_data['conductance_vector']
+        series_a = vec_data.get('series_a', [])
+        series_b = vec_data.get('series_b', [])
+        
+        # Draw Series A (Solid)
+        pdf.set_draw_color(0, 0, 0) 
+        pdf.set_line_width(0.3)
+        pdf.set_dash_pattern() 
+        
+        points_a = []
+        if len(series_a) > 1:
+            step_x = gw / (len(series_a) - 1)
+            for i in range(len(series_a)):
+                v = series_a[i]
+                x = gx + (i * step_x)
+                y = (gy + gh) - (v * gh)
+                points_a.append((x, y))
+        
+        if points_a:
+            draw_safe_polyline(pdf, points_a)
+        
+        # Draw Series B (Dashed) - NATIVE PDF DASHING via Polyline
+        # [FIX] Ensures perfect, uniform dashes along the curve
+        pdf.set_dash_pattern(dash=1, gap=1) 
+        
+        points_b = []
+        if len(series_b) > 1:
+            step_x = gw / (len(series_b) - 1)
+            for i in range(len(series_b)):
+                v = series_b[i]
+                x = gx + (i * step_x)
+                y = (gy + gh) - (v * gh)
+                points_b.append((x, y))
+        
+        if points_b:
+            draw_safe_polyline(pdf, points_b)
+            
+        pdf.set_dash_pattern() # Reset
+
+        # [LABEL RESTORATION] Re-introduce text labels for MAX/AVG
+        # Logic taken from deleted block
+        max_val_graph = vec_data.get('max_val', assets_data.get('max_conductance', 0))
+        if isinstance(max_val_graph, str): max_val_graph = 0 # Safety
+        
         mid_val_graph = max_val_graph / 2.0
-        
-        # Fattore di scala usato in conductance_graph.py
         scaling_factor = 1.1 
-        h_pdf = py(c['h']) # Altezza totale immagine in mm
         
-        # Calcolo Offset Y per MAX (valore 1.0 su scala 1.1)
-        # Distanza dal TOP dell'immagine = 1 - (1.0 / 1.1) = ~0.0909
+        # Position calculations matching legacy code
+        h_pdf = gh
         offset_pct_max = (scaling_factor - 1.0) / scaling_factor
-        y_max_label = py(c['y']) + (h_pdf * offset_pct_max)
-        
-        # Calcolo Offset Y per MED (valore 0.5 su scala 1.1)
-        # Distanza dal TOP = 1 - (0.5 / 1.1) = ~0.5454
+        y_max_label = gy + (h_pdf * offset_pct_max)
         offset_pct_mid = (scaling_factor - 0.5) / scaling_factor
-        y_mid_label = py(c['y']) + (h_pdf * offset_pct_mid)
-
-        # Configurazione Stile Testo
-        # Font size 7pt. Layout su 3 righe.
-        pdf.set_font_size(7)
-        cell_w = px(209) # La cella parte da 0 e finisce esattamente all'ancoraggio x=209
-        line_h = 2.5     # Altezza riga ridotta (2.5mm) per compattezza grafica
+        y_mid_label = gy + (h_pdf * offset_pct_mid)
         
-        # Offset correttivo Y:
-        # Il testo "MAX" è alto ~7.5mm (3 righe). Per centrarlo rispetto alla linea ideale del valore,
-        # lo spostiamo in su di circa metà altezza blocco (-4mm).
+        pdf.set_font_size(7)
+        cell_w = px(209)
+        line_h = 2.5
         y_centering_offset = -4
         
-        # --- DISEGNO MAX ---
+        # Draw Labels
         pdf.set_xy(0, y_max_label + y_centering_offset) 
         pdf.cell(cell_w, line_h, "MAX", border=0, align='R', ln=2)
         pdf.cell(cell_w, line_h, f"{int(max_val_graph)}", border=0, align='R', ln=2)
         pdf.cell(cell_w, line_h, "umhos", border=0, align='R')
         
-        # --- DISEGNO MED ---
         pdf.set_xy(0, y_mid_label + y_centering_offset)
         pdf.cell(cell_w, line_h, "MED", border=0, align='R', ln=2)
         pdf.cell(cell_w, line_h, f"{int(mid_val_graph)}", border=0, align='R', ln=2)
         pdf.cell(cell_w, line_h, "umhos", border=0, align='R')
 
+    elif assets_data.get('conductance'):
+        c = LAYOUT['Graph']
+        pdf.image(assets_data['conductance'], x=px(c['x']), y=py(c['y']), w=px(c['w']), h=py(c['h']))
 
-    # G. CLAUSOLE TESTUALI
-    c = LAYOUT['Clausole']
-    pdf.set_font_size(c['font_size'])
-    # Prendiamo i tipi di relazione già calcolati in 'elaborati'
-    tipi = elaborati.get('tipi_selezionati', [])
-    testo = genera_testo_clausole(tipi)
-    pdf.set_xy(px(c['x']), py(c['y']))
-    # multi_cell ci permette di andare a capo automaticamente nella larghezza indicata
-    pdf.multi_cell(px(c['w_text']), 5, txt=testo, align='L')
+    # E. HEADER
+    # [STYLE FIX] Date font size 8pt, allineato x 58
+    pdf.set_font_size(8)
+    contract_id = assets_data.get('contract_id')
+    contract_date = assets_data.get('contract_date')
+    if not contract_id: contract_id = datetime.now().strftime("%Y%m%d-%H%M")
+    if not contract_date: contract_date = datetime.now().strftime('%d.%m.%Y')
     
-    # H. NOTA ROSSA (ANELLO DEBOLE / INSTABILITÀ)
+    c = LAYOUT['Header_Data']
+    pdf.set_xy(px(c['x']), py(c['y']))
+    pdf.cell(px(300), 10, f"DATA: {contract_date}", ln=1, align='L')
+    c = LAYOUT['Header_ID']
+    pdf.set_font_size(8)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_xy(px(c['x']), py(c['y']))
+    pdf.cell(px(300), 4, f"{contract_id}", ln=1, align='L')
+    pdf.set_text_color(0, 0, 0)
+
+    # F. GRAFICO (Legacy Removed) - Use F. CONDUTTANZA VECTOR above
+    pass
+
+    # H. NOTA ROSSA
     anello = elaborati.get('anello_debole', {})
-    # Se esiste un "colpevole" (id diverso da -1), mostriamo la nota critica
-    # Se esiste un "colpevole" (id diverso da -1), mostriamo la nota critica
-    # O se è NESSUNO, lo mostriamo comunque come richiesto.
     if True:
         c = LAYOUT['Nota_Rossa']
         pdf.set_font_size(c['font_size'])
-        pdf.set_text_color(0, 0, 0)  # rosso
+        pdf.set_text_color(0, 0, 0)
         pdf.set_xy(px(c['x']), py(c['y']))
-        # Traduzione PERSONA -> CONTRAENTE
-        nome_raw = anello.get('nome', '') # es. "PERSONA 0"
-        if "PERSONA 0" in nome_raw:
-            final_name = "CONTRAENTE A"
-        elif "PERSONA 1" in nome_raw:
-            final_name = "CONTRAENTE B"
-        else:
-            final_name = nome_raw
+        nome_raw = anello.get('nome', '')
+        if "PERSONA 0" in nome_raw: final_name = "CONTRAENTE A"
+        elif "PERSONA 1" in nome_raw: final_name = "CONTRAENTE B"
+        else: final_name = nome_raw
+        pdf.cell(px(c['w']), 10, f"{final_name}", align='C')
+        pdf.set_text_color(0, 0, 0)
 
-        pdf.cell(
-            px(c['w']),
-            10,
-            f"{final_name}",
-            align='C'
-        )
-        pdf.set_text_color(0, 0, 0)    # torniamo al nero
+    # 7. CLAUSOLE TESTUALI (PARTE BASSA CONTINUA)
+    # 7. CLAUSOLE TESTUALI (PAGINA 2 - IBRIDA LUNGA)
+    # [LAYOUT HYBRID] Page 1 is A4 (Graphics). Page 2 is Custom Height (Clauses).
+    # Calculate required height for single long page
+    clause_margin = 5.5
+    clause_padding = 5
+    clause_w_text = 210 - ((clause_margin + clause_padding) * 2) 
+    
+    # Calculate height
+    clauses_h_needed = calculate_required_height(
+        w_txt=clause_w_text,
+        risk_lvl=fascia,
+        types=tipi
+    )
+    
+    # Add Page 2 with Custom Layout
+    # Height = Needed + Top Margin (20) + Bottom Buffer (20)
+    page2_h = clauses_h_needed + 40
+    if page2_h < 297: page2_h = 297 # Min height A4 if text is short
+    
+    # Force add page with tuple format
+    # FPDF allows mixing page formats
+    pdf.add_page(format=(210, page2_h))
+    
+    # Reset margins for text
+    clause_start_y = 20 
+    pdf.set_left_margin(clause_margin + clause_padding)
+    pdf.set_right_margin(210 - (clause_margin + clause_padding))
+    
+    # Disable auto page break for this page to prevent splitting
+    pdf.set_auto_page_break(False)
+    
+    # Draw clauses (disable_pagination=True, since we have one huge page)
+    draw_clauses(pdf, clause_margin + clause_padding, clause_start_y, clause_w_text, tipi, fascia, disable_pagination=True)
 
-    # SALVATAGGIO DEL FILE
-    out_file = os.path.join(output_dir, f"Contract_{contract_id}.pdf")
+    # SALVATAGGIO
+    output_filename = f"Contract_{contract_id}.pdf"
+    full_output_path = os.path.join(output_dir, output_filename)
     try:
         print(f"   ⏳ [PDF] Salvataggio file in corso...")
-        pdf.output(out_file)
-        print(f"   ✅ [PDF] File salvato correttamente: {os.path.basename(out_file)}")
+        pdf.output(full_output_path)
+        print(f"   ✅ [PDF] File salvato correttamente: {output_filename}")
     except Exception as e:
         print(f"   ❌ [PDF] Errore salvataggio: {e}")
         return None
+    
+    return full_output_path
 
-    return out_file
 
 
 if __name__ == "__main__":
-    # Questo modulo è pensato come libreria.
-    # Per il flusso completo usa lo script esterno che prepara i dati e gli asset.
     print("Per testare questo modulo, esegui ALUA/process_data.py.")

@@ -76,10 +76,13 @@ def generate_qr_image(link_data, output_path):
 
     #  Nota: il QR “standard” ha un bordo di 4 moduli, ma qui lo
     #  rimuoviamo per inserirlo perfettamente nel layout del PDF.
+    # [QUALITY FIX] User requested SVG-like quality.
+    # Increasing box_size to 100 ensures extremely high resolution (approx 2100x2100px)
+    # This is effectively vector quality for print.
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=10,
+        box_size=100,
         border=0,
     )
     
@@ -93,3 +96,43 @@ def generate_qr_image(link_data, output_path):
     # Produciamo un PNG classico a tinta unita.
     img = qr.make_image(fill_color="black", back_color="white")
     img.save(output_path)
+
+
+def draw_qr_vector(pdf, url, x, y, size_mm):
+    """
+    Disegna il QR Code direttamente sul PDF usando primitive vettoriali (rettangoli).
+    Garantisce qualità infinita (vettoriale) su qualsiasi versione di FPDF.
+    """
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10, # Irrilevante per la matrice
+        border=0,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    
+    matrix = qr.get_matrix()
+    matrix_len = len(matrix)
+    
+    # Dimensione di un singolo modulo in mm
+    module_size = size_mm / matrix_len
+    
+    # Iteriamo la matrice e disegniamo solo i moduli neri
+    # (True = Nero, False = Bianco/Trasparente)
+    # FPDF rect: x, y, w, h, style='F' (Fill)
+    
+    original_fill = pdf.fill_color
+    pdf.set_fill_color(0, 0, 0) # Nero
+    
+    for row in range(matrix_len):
+        for col in range(matrix_len):
+            if matrix[row][col]:
+                # Calcolo coordinate assolute
+                rect_x = x + (col * module_size)
+                rect_y = y + (row * module_size)
+                # Disegno rettangolo pieno
+                pdf.rect(rect_x, rect_y, module_size, module_size, 'F')
+                
+    # Ripristino colore (opzionale, ma buona norma)
+    # pdf.set_fill_color(original_fill) # FPDF non espone getter facile, assumiamo nero default

@@ -3,13 +3,13 @@ import time
 import json
 
 # --- AGGIORNA CON LA TUA PORTA USB ---
-SERIAL_PORT = "/dev/cu.usbmodem2101"
+SERIAL_PORT = "/dev/cu.usbmodem1201"
 BAUD_RATE = 115200
 OUTPUT_FILE = "../data/arduino_data.jsonl"
 
 # Etichette per i pulsanti (per entrambe le persone)
 RELAZIONI = [
-    "CONOSCENZA",
+    "CIRCOSTANZIALE",
     "ROMANTICA",
     "LAVORATIVA",
     "AMICALE",

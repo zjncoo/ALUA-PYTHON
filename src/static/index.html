@@ -427,7 +427,7 @@
                 <div class="btn-grid">
                     <div class="p-col">
                         <div class="p-label">CONTRAENTE A</div>
-                        <div id="btn-a-0" class="btn-indicator">CONOSCENZA</div>
+                        <div id="btn-a-0" class="btn-indicator">CIRCOSTANZIALE</div>
                         <div id="btn-a-1" class="btn-indicator">ROMANTICA</div>
                         <div id="btn-a-2" class="btn-indicator">LAVORATIVA</div>
                         <div id="btn-a-3" class="btn-indicator">AMICALE</div>
@@ -436,7 +436,7 @@
                     </div>
                     <div class="p-col">
                         <div class="p-label">CONTRAENTE B</div>
-                        <div id="btn-b-0" class="btn-indicator">CONOSCENZA</div>
+                        <div id="btn-b-0" class="btn-indicator">CIRCOSTANZIALE</div>
                         <div id="btn-b-1" class="btn-indicator">ROMANTICA</div>
                         <div id="btn-b-2" class="btn-indicator">LAVORATIVA</div>
                         <div id="btn-b-3" class="btn-indicator">AMICALE</div>
@@ -532,7 +532,7 @@
         };
 
         const BUTTON_KEYS = [
-            "CONOSCENZA", "ROMANTICA", "LAVORATIVA", "AMICALE", "FAMILIARE", "CONVIVENZA"
+            "CIRCOSTANZIALE", "ROMANTICA", "LAVORATIVA", "AMICALE", "FAMILIARE", "CONVIVENZA"
         ];
 
         const EXPERIENCE_SEQUENCE = {
@@ -612,11 +612,11 @@
                 updateLiveData(evt.payload);
             }
             else if (evt.type === 'CHECK') {
-                const map = { 
-                    'AUDIO_FILES': 'audio', 
+                const map = {
+                    'AUDIO_FILES': 'audio',
                     'AUDIO': 'audio',
-                    'ARDUINO': 'arduino', 
-                    'DB_CONNECTION': 'server' 
+                    'ARDUINO': 'arduino',
+                    'DB_CONNECTION': 'server'
                 };
                 if (map[evt.component]) {
                     updateCheckUI(map[evt.component], evt.status === 'OK' ? 'OK' : 'ERR', evt.detail || evt.status);
@@ -661,6 +661,13 @@
             if (s.last_phase) processEvent(s.last_phase);
             if (s.current_audio) processEvent(s.current_audio);
             if (s.last_data) updateLiveData(s.last_data.payload);
+
+            // NEW: Restore checks
+            if (s.checks) {
+                for (const key in s.checks) {
+                    processEvent(s.checks[key]);
+                }
+            }
         }
 
         function updateAudioUI(current, next, status) {

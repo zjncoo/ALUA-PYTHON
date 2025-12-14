@@ -11,24 +11,24 @@ import os
 # Colore nero pieno, con canale alpha (RGBA)
 FILL_COLOR = (0, 0, 0, 255)       # Nero pieno per bottoni e barra slider
 TEXT_COLOR = (0, 0, 0, 255)       # Testo nero
-FONT_SIZE = 40                    # Dimensione del font per la percentuale
-BTN_RADIUS = 83                   # Raggio dei cerchi dei bottoni
+FONT_SIZE = 52                    # Increased from 48 (+4 approx 1pt in this scale)
+BTN_RADIUS = 98                   # Raggio dei cerchi dei bottoni (Scaled for 1328x1354)
 
 # 1. COORDINATE DELLO SLIDER (rettangolo verticale vuoto nel template)
 # Formato: (Left_X, Top_Y, Right_X, Bottom_Y)
-# Queste coordinate sono in pixel, rispetto all'immagine pezzo.png.
-SLIDER_BOX = (842, 168, 1005, 952) 
+# Queste coordinate sono in pixel, rispetto all'immagine pezzo.png (1328x1354).
+SLIDER_BOX = (1023, 205, 1216, 1141) 
 
 # 2. COORDINATE DEI CENTRI DEI BOTTONI
 # 6 posizioni (X, Y) per 6 bottoni.
 # Quando un bottone è "premuto", disegniamo un cerchio nero centrato qui.
 BTN_CENTERS = [
-    (194, 168),  # Bottone 0 (in alto a sinistra)
-    (560, 168),  # Bottone 1 (in alto a destra)
-    (194, 520),  # Bottone 2 (centro sinistra)
-    (560, 520),  # Bottone 3 (centro destra)
-    (194, 870),  # Bottone 4 (basso sinistra)
-    (560, 870),  # Bottone 5 (basso destra)
+    (256, 205),   # Bottone 0 (in alto a sinistra)
+    (689, 205),   # Bottone 1 (in alto a destra)
+    (256, 625),   # Bottone 2 (centro sinistra)
+    (689, 625),   # Bottone 3 (centro destra)
+    (256, 1043),  # Bottone 4 (basso sinistra)
+    (689, 1043),  # Bottone 5 (basso destra)
 ]
 
 # Genera un'immagine per una singola persona usando il layout standard.
@@ -129,8 +129,10 @@ def genera_pezzo_singolo(dati_persona, path_output):
     # Calcoliamo la posizione del testo:
     # - lo centriamo orizzontalmente sopra lo slider
     # - lo spostiamo un po' verso l'alto per staccarlo graficamente
-    text_x = lx + (rx - lx - text_w) // 2 - 10  # il "-10" è un aggiustamento fine
-    text_y = ty - 34 - text_h - 35             # offset verticali per l'allineamento nel template
+    # [STYLE FIX] Shifted right by 9px total (-12 -> -3)
+    text_x = lx + (rx - lx - text_w) // 2 - 3
+    # [STYLE FIX] Lowered by 30px total (was -42 orig, -32, -22, -17, now -12)
+    text_y = ty - 41 - text_h - 12             # offset verticali per l'allineamento nel template scalato
 
     # Disegniamo il testo sulla nostra immagine
     draw.text((text_x, text_y), text, font=font, fill=TEXT_COLOR)

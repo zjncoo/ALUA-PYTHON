@@ -51,10 +51,10 @@ def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductan
 
     tempo = range(len(vals_a))
 
-    # 3. CONFIGURAZIONE DIMENSIONI (2155x322 px)
-    W_PX = 2155
-    H_PX = 322
-    DPI = 100
+    # 3. CONFIGURAZIONE DIMENSIONI (2155x322 px) -> SCALED 2X per qualità
+    W_PX = 2155 * 2
+    H_PX = 322 * 2
+    DPI = 200 # DPI effettivo
     figsize_inches = (W_PX / DPI, H_PX / DPI)
 
     # 4. SMOOTHING E CALCOLO MAX
@@ -102,3 +102,38 @@ def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductan
 
     # Ritorniamo anche il valore massimo per permettere al generatore PDF di scrivere l'etichetta
     return output_path, max_val
+
+
+def get_conductance_data_points():
+    """
+    Restituisce i dati grezzi (normalizzati tra 0 e 1) delle due curve
+    per il disegno vettoriale diretto nel PDF.
+    Ritorna: (data_list_A, data_list_B, max_val_assoluto)
+    Dove ogni data_list è [y1, y2, y3...] (valori float 0.0-1.0)
+    """
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base_dir, "../../data/arduino_data.jsonl")
+    data_list = load_data_from_jsonl(data_path)
+
+    vals_a = []
+    vals_b = []
+    
+    for item in data_list:
+        vals_a.append(item.get("SCL0", 0))
+        vals_b.append(item.get("SCL1", 0))
+
+    if not vals_a or len(vals_a) < 2:
+        return [], [], 0
+
+    # Smoothing per pulire le linee (coerente con generazione PNG)
+    vals_a_smooth = list(gaussian_filter1d(vals_a, sigma=6))
+    vals_b_smooth = list(gaussian_filter1d(vals_b, sigma=6))
+    
+    max_val = max(max(vals_a_smooth), max(vals_b_smooth))
+    if max_val == 0: max_val = 1.0 
+    
+    # Normalizziamo 0.0 -> 1.0 (per rendering in PDF)
+    norm_a = [float(v) / float(max_val) for v in vals_a_smooth]
+    norm_b = [float(v) / float(max_val) for v in vals_b_smooth]
+    
+    return norm_a, norm_b, max_val

@@ -104,7 +104,7 @@ def _generate_png(avg_intensity, val_compat, output_path):
     y = np.sin(freq_y * t)
 
     # 2. CREAZIONE DELLA FIGURA PNG
-    plt.figure(figsize=(4, 4), dpi=150)
+    plt.figure(figsize=(4, 4), dpi=300) # [QUALITY FIX] DPI aumentato 150->300
     ax = plt.gca()
     ax.axis('off')
 
@@ -204,3 +204,28 @@ def generate_lissajous(data_history, compat_pct, output_path):
     _generate_png(avg_intensity, val_compat, output_path)
     
     return output_path
+
+
+def get_lissajous_points_vector(avg_intensity, val_compat, num_points=1000):
+    """
+    Restituisce una lista di coordinate (x, y) normalizzate [-1, 1]
+    per disegnare la figura di Lissajous in vettoriale puro.
+    """
+    import numpy as np
+    import math
+    
+    # Ricalcolo parametri
+    freq_x = 1 + int((avg_intensity / 1000.0) * 12)
+    freq_y = freq_x + 1
+    delta = (val_compat / 100.0) * math.pi
+    
+    t = np.linspace(0, 2 * np.pi, num_points)
+    x = np.sin(freq_x * t + delta)
+    y = np.sin(freq_y * t)
+    
+    # Zip into (x,y) tuples
+    points = list(zip(x, y))
+    # Close the loop
+    points.append(points[0])
+    
+    return points
