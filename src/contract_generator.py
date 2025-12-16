@@ -18,8 +18,10 @@ Questo file si occupa SOLO dell'assemblaggio grafico:
 """
 
 # CONFIGURAZIONE LAYOUT (IN PIXEL DA PHOTOSHOP)
-PSD_WIDTH  = 2481  
-PSD_HEIGHT = 3508
+PSD_WIDTH  = 2482  
+PSD_HEIGHT = 3237
+PDF_W_MM = 210.0
+PDF_H_MM = PSD_HEIGHT * (PDF_W_MM / PSD_WIDTH)
 
 def px(pixel_value):
     """
@@ -48,10 +50,10 @@ LAYOUT = {
     'QRCode': { 'x': 2155, 'y': 2770, 'w': 209, 'h': 209 },
 
     # 4. VISUALIZZAZIONE bottoni + slider
-    'Pezzo_P0': { 'x': 88, 'y': 443, 'w': 767 }, 
+    'Pezzo_P0': { 'x': 108, 'y': 480, 'w': 726 }, 
 
     # 5. VISUALIZZAZIONE bottoni + slider
-    'Pezzo_P1': { 'x': 1656, 'y': 439, 'w': 767 },
+    'Pezzo_P1': { 'x': 1679, 'y': 476, 'w': 726 },
     
     # 6. HEADER (Data e ID contratto)
     'Header_Data': { 'x': 58, 'y': 169 }, # Raised by 4px (173 -> 169)
@@ -65,7 +67,7 @@ LAYOUT = {
     'Nota_Rossa': { 'x': 1852, 'y': 2366, 'w': 361, 'font_size': 12 },
 
     # 9. GRAFICO CONDUTTANZA
-    'Graph': { 'x': 207, 'y': 1443, 'w': 2155, 'h': 322 },
+    'Graph': { 'x': 212, 'y': 1443, 'w': 2155, 'h': 322 },
 
     # 10. FASCIA DI RISCHIO 
     'Fascia': { 'x': 1988, 'y': 2043, 'font_size': 12 },
@@ -75,7 +77,7 @@ LAYOUT = {
     'RiskPrice': { 'x': 1936, 'y': 2612, 'w': 197, 'font_size': 20 },
     # [NEW] Posizione della frase di rischio (Bottom-Left)
     # Coordinate aggiornate su richiesta: x=124, y=2765
-    'RiskPhrase': { 'x': 124, 'y': 2765, 'w': 1902, 'font_size': 15 }
+    'RiskPhrase': { 'x': 124, 'y': 2775, 'w': 1902, 'font_size': 15 }
 }
 
 def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disable_pagination=True):
@@ -166,7 +168,7 @@ def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disabl
             check_page_break(30) 
             
             # A. TITOLO (Art. X - Titolo)
-            pdf.set_font('BergenMono', 'B', 10) 
+            pdf.set_font('BergenMono', 'B', 9) 
             full_title = f"{clause['id']} - {clause['title']}"
             pdf.multi_cell(w_text, line_h, full_title, align='L')
             
@@ -186,7 +188,14 @@ def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disabl
     
     # 2. CLAUSOLE RELAZIONE SPECIFICHE
     # Iteriamo su tutte le relazioni attivate dai bottoni (es. "AMICALE", "LAVORATIVA")
-    for rel_type in active_types:
+    # [FIX] Ordinamento delle clausole in base all'ordine dei bottoni fisici
+    # L'ordine dei bottoni è definito in monitor_arduino.py: RELAZIONI
+    BUTTON_ORDER = ["CIRCOSTANZIALE", "ROMANTICA", "LAVORATIVA", "AMICALE", "FAMILIARE", "CONVIVENZA"]
+    
+    # Ordiniamo active_types in base all'ordine dei bottoni
+    sorted_types = sorted(active_types, key=lambda t: BUTTON_ORDER.index(t) if t in BUTTON_ORDER else 999)
+    
+    for rel_type in sorted_types:
         r_data = RELATIONSHIP_CLAUSES.get(rel_type)
         if not r_data: continue
 
@@ -196,7 +205,7 @@ def draw_clauses(pdf, start_x, start_y, w_text, active_types, risk_level, disabl
         suffix = r_data.get('header_suffix', rel_type)
         header_text = f"PROCEDURA REGOLAMENTAZIONE DELLA {suffix}"
         
-        pdf.set_font('BergenMono', 'B', 16) 
+        pdf.set_font('BergenMono', '', 16) 
         pdf.multi_cell(w_text, 8, header_text, align='L') 
         pdf.ln(1) # Reduced from 3
         
@@ -283,7 +292,8 @@ def calculate_required_height(w_txt, risk_lvl, types):
     line_h_mm = 4 
     
     # Spazio iniziale (Header pag 2)
-    total_h += 20 
+    # [LAYOUT FIX] Removed arbitrary 20mm start. Height starts from 0 text content.
+    total_h += 0 
 
     for t in types:
         rd = RELATIONSHIP_CLAUSES.get(t)
@@ -333,7 +343,20 @@ def calculate_required_height(w_txt, risk_lvl, types):
 
         total_h += 5 # Section gap (ln(5))
 
-    return total_h + 30 # Safety margin at bottom
+    # [FOOTER CALCULATION] Calcolo preciso dello spazio necessario per il footer
+    # Layout footer (vedi righe 680-742):
+    # - pdf.ln(10) dopo le clausole
+    # - Titolo "FIRMA": h=8mm
+    # - pdf.ln(10)
+    # - Linee firma + labels: ~7mm
+    # - pdf.ln(20) prima del QR
+    # - QR code: ~20mm (stimato)
+    # - Testo sotto QR: ~8mm
+    # - Margine finale: 3 cm = 30mm
+    #
+    # Totale: 10 + 8 + 10 + 7 + 20 + 20 + 8 + 30 = 113mm
+    footer_space = 10 + 8 + 10 + 7 + 20 + 20 + 8 + 25  # 3 cm di margine finale
+    return total_h + footer_space
 
 # MAIN ASSEMBLER: GENERAZIONE DEL PDF A4 (ADATTIVO PER ROTOLO)
 def genera_pdf_contratto_A4(dati):
@@ -359,16 +382,16 @@ def genera_pdf_contratto_A4(dati):
     fascia = elaborati.get('fascia', 4)
     tipi = elaborati.get('tipi_selezionati', [])
     
-    # 1. SETUP PDF (STANDARD A4, PAGINATED)
-    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    # 1. SETUP PDF (Custom Format per Pagina 1)
+    pdf = FPDF(orientation='P', unit='mm', format=(PDF_W_MM, PDF_H_MM))
     pdf.set_auto_page_break(auto=True, margin=15) # Standard margin
     pdf.set_compression(False) # [QUALITY FIX] Uncompressed PDF for max sharpness
     pdf.add_page()
     
     # 2. CARICAMENTO TEMPLATE BACKGROUND (Solo su pag 1)
     if template_path and os.path.exists(template_path):
-        # A4 = 210x297
-        pdf.image(template_path, x=0, y=0, w=210, h=297)
+        # Adattiamo l'immagine alla dimensione esatta della pagina calcolata
+        pdf.image(template_path, x=0, y=0, w=PDF_W_MM, h=PDF_H_MM)
 
     # 3. SET WINDOW/VIEWPORT (Solo per pag 1 grafica)
     # ... logic for graphical elements placement remains ...
@@ -455,24 +478,9 @@ def genera_pdf_contratto_A4(dati):
         pdf.rect(x=px(risk_box_x), y=py(current_y), w=px(risk_box_w), h=py(risk_box_h), style='D')
         pdf.set_line_width(0.2)
 
-    # C. QR CODE
-    # [QUALITY FIX] Use Vector QR drawing instead of PNG for infinite resolution
-    if 'qr_link' in assets_data:
-        c = LAYOUT['QRCode'] # {'x': 2155, 'y': 2770, 'w': 209, 'h': 209} in Pixels
-        qr_x = px(c['x'])
-        qr_y = py(c['y'])
-        # Per width/height, px/py vanno bene se scalano solo. 
-        # px fa: (val / PSD_WIDTH) * 210. È una proporzione pura.
-        qr_sz = px(c['w']) 
-        qrcode_generator.draw_qr_vector(pdf, assets_data['qr_link'], qr_x, qr_y, qr_sz)
-    elif 'qr_code' in assets_data and os.path.exists(assets_data['qr_code']):
-        # Fallback to PNG if link is missing (legacy)
-        c = LAYOUT['QRCode']
-        qr_x = px(c['x'])
-        qr_y = py(c['y'])
-        qr_w = px(c['w'])
-        qr_h = py(c['h'])
-        pdf.image(assets_data['qr_code'], x=qr_x, y=qr_y, w=qr_w, h=qr_h)
+    # C. QR CODE - MOVED TO FOOTER
+    # Block removed from Page 1
+    pass
 
     # D. PEZZI P0/P1
     path_p0 = assets_data.get('pezzo_p0')
@@ -598,12 +606,12 @@ def genera_pdf_contratto_A4(dati):
         pdf.set_xy(0, y_max_label + y_centering_offset) 
         pdf.cell(cell_w, line_h, "MAX", border=0, align='R', ln=2)
         pdf.cell(cell_w, line_h, f"{int(max_val_graph)}", border=0, align='R', ln=2)
-        pdf.cell(cell_w, line_h, "umhos", border=0, align='R')
+        pdf.cell(cell_w, line_h, "μmhos", border=0, align='R')
         
         pdf.set_xy(0, y_mid_label + y_centering_offset)
         pdf.cell(cell_w, line_h, "MED", border=0, align='R', ln=2)
         pdf.cell(cell_w, line_h, f"{int(mid_val_graph)}", border=0, align='R', ln=2)
-        pdf.cell(cell_w, line_h, "umhos", border=0, align='R')
+        pdf.cell(cell_w, line_h, "μmhos", border=0, align='R')
 
     elif assets_data.get('conductance'):
         c = LAYOUT['Graph']
@@ -658,17 +666,21 @@ def genera_pdf_contratto_A4(dati):
         types=tipi
     )
     
-    # Add Page 2 with Custom Layout
-    # Height = Needed + Top Margin (20) + Bottom Buffer (20)
-    page2_h = clauses_h_needed + 40
-    if page2_h < 297: page2_h = 297 # Min height A4 if text is short
-    
-    # Force add page with tuple format
-    # FPDF allows mixing page formats
-    pdf.add_page(format=(210, page2_h))
+
     
     # Reset margins for text
-    clause_start_y = 20 
+    # [LAYOUT FIX] Top Margin Adjustment
+    # Side margin = 5.5mm. We want Border Top Y = 5.5mm.
+    # Border is drawn at 'start_y - 2'. So start_y should be 7.5mm.
+    clause_start_y = clause_margin + 2 # 5.5 + 2 = 7.5
+    
+    # Recalculate Page 2 Height with new margins
+    # Height = Text Content + Top Start + Bottom Margin (e.g. 10mm)
+    page2_h = clauses_h_needed + clause_start_y + 10 
+
+    # Force add page with tuple format
+    # FPDF allows mixing page formats
+    pdf.add_page(format=(210, page2_h)) 
     pdf.set_left_margin(clause_margin + clause_padding)
     pdf.set_right_margin(210 - (clause_margin + clause_padding))
     
@@ -677,6 +689,69 @@ def genera_pdf_contratto_A4(dati):
     
     # Draw clauses (disable_pagination=True, since we have one huge page)
     draw_clauses(pdf, clause_margin + clause_padding, clause_start_y, clause_w_text, tipi, fascia, disable_pagination=True)
+
+    # 8. FOOTER: FIRMA E QR CODE
+    # Spazio dopo le clausole
+    pdf.ln(10)
+    
+    # Check page break for footer (should not happen given we calculated height, but safety first if we were paginating)
+    # Since we are in 'one huge page' mode, we just draw.
+    
+    # A. SEZIONE FIRMA
+    pdf.set_font('BergenMono', 'B', 12)
+    pdf.cell(w=0, h=8, txt="FIRMA", ln=1, align='C')
+    pdf.ln(10)
+    
+    # Linee firma
+    # Page width 210. Margins let's use current X.
+    # We want two lines.
+    start_x = pdf.get_x()
+    page_width = 210
+    margin_x = clause_margin + clause_padding
+    available_w = page_width - (2 * margin_x)
+    
+    line_w = 60
+    
+    # Left Line (Contraente A)
+    x_left = margin_x
+    pdf.line(x_left, pdf.get_y(), x_left + line_w, pdf.get_y())
+    
+    # Right Line (Contraente B)
+    x_right = page_width - margin_x - line_w
+    pdf.line(x_right, pdf.get_y(), x_right + line_w, pdf.get_y())
+    
+    pdf.ln(2)
+    
+    # Labels
+    pdf.set_font('BergenMono', '', 10)
+    y_text = pdf.get_y()
+    
+    pdf.set_xy(x_left, y_text)
+    pdf.cell(line_w, 5, "CONTRAENTE A", align='L')
+    
+    pdf.set_xy(x_right, y_text)
+    pdf.cell(line_w, 5, "CONTRAENTE B", align='R')
+    
+    pdf.ln(20) # Spazio prima del QR
+    
+    # B. QR CODE CENTRATO
+    # Size: Match text width below
+    pdf.set_font('BergenMono', '', 9)
+    w1 = pdf.get_string_width("Completa la tua polizza")
+    w2 = pdf.get_string_width("sull'app ALUA Systems")
+    qr_size = max(w1, w2) + 2 - px(80) # Reduced by 67px total (17px + 50px)
+    x_qr = (page_width - qr_size) / 2
+    y_qr = pdf.get_y()
+    
+    if 'qr_link' in assets_data:
+        qrcode_generator.draw_qr_vector(pdf, assets_data['qr_link'], x_qr, y_qr, qr_size)
+    elif 'qr_code' in assets_data and os.path.exists(assets_data['qr_code']):
+        pdf.image(assets_data['qr_code'], x=x_qr, y=y_qr, w=qr_size, h=qr_size)
+    
+    # Text below QR
+    pdf.set_xy(0, y_qr + qr_size + 3)
+    pdf.set_font('BergenMono', '', 8)
+    pdf.multi_cell(0, 4, "Completa la tua polizza\nsull'app ALUA Systems", align='C')
 
     # SALVATAGGIO
     output_filename = f"Contract_{contract_id}.pdf"

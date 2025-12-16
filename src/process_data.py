@@ -599,13 +599,16 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     # Parametri: gsr0, gsr1, sl0, sl1, comp, btn0, btn1, bad, fascia, id
     
     # 1. Recupero ULTIMI valori (per compatibilità con altri sistemi/display)
-    last_scl0 = data_list[-1].get("SCL0", 0) if data_list else 0
-    last_scl1 = data_list[-1].get("SCL1", 0) if data_list else 0
+    # [FIX] Use source_list (Phase 2) if available to avoid trailing zeros/noise
+    target_list = source_list if source_list else data_list
+    
+    last_scl0 = target_list[-1].get("SCL0", 0) if target_list else 0
+    last_scl1 = target_list[-1].get("SCL1", 0) if target_list else 0
 
     # 2. Calcolo MEDIE (per la frequenza del Lissajous visualizzato su Web)
-    if data_list:
-        avg_scl0 = sum(d.get("SCL0", 0) for d in data_list) / len(data_list)
-        avg_scl1 = sum(d.get("SCL1", 0) for d in data_list) / len(data_list)
+    if target_list:
+        avg_scl0 = sum(d.get("SCL0", 0) for d in target_list) / len(target_list)
+        avg_scl1 = sum(d.get("SCL1", 0) for d in target_list) / len(target_list)
     else:
         avg_scl0, avg_scl1 = 0.0, 0.0
     

@@ -11,24 +11,24 @@ import os
 # Colore nero pieno, con canale alpha (RGBA)
 FILL_COLOR = (0, 0, 0, 255)       # Nero pieno per bottoni e barra slider
 TEXT_COLOR = (0, 0, 0, 255)       # Testo nero
-FONT_SIZE = 52                    # Increased from 48 (+4 approx 1pt in this scale)
-BTN_RADIUS = 98                   # Raggio dei cerchi dei bottoni (Scaled for 1328x1354)
+FONT_SIZE = 38                    # Scaled for 1002x972
+BTN_RADIUS = 80                   # Scaled - 7px
 
 # 1. COORDINATE DELLO SLIDER (rettangolo verticale vuoto nel template)
 # Formato: (Left_X, Top_Y, Right_X, Bottom_Y)
-# Queste coordinate sono in pixel, rispetto all'immagine pezzo.png (1328x1354).
-SLIDER_BOX = (1023, 205, 1216, 1141) 
+# Nuove coordinate: altezza fissa 747px (100%), bottom anchor 847
+SLIDER_BOX = (792, 100, 947, 847)  
 
 # 2. COORDINATE DEI CENTRI DEI BOTTONI
 # 6 posizioni (X, Y) per 6 bottoni.
-# Quando un bottone è "premuto", disegniamo un cerchio nero centrato qui.
+# Coordinate corrette fornite dall'utente
 BTN_CENTERS = [
-    (256, 205),   # Bottone 0 (in alto a sinistra)
-    (689, 205),   # Bottone 1 (in alto a destra)
-    (256, 625),   # Bottone 2 (centro sinistra)
-    (689, 625),   # Bottone 3 (centro destra)
-    (256, 1043),  # Bottone 4 (basso sinistra)
-    (689, 1043),  # Bottone 5 (basso destra)
+    (179, 101),   # Bottone 0
+    (525, 101),   # Bottone 1
+    (178, 437),   # Bottone 2
+    (525, 437),   # Bottone 3
+    (178, 770),   # Bottone 4
+    (525, 770),   # Bottone 5
 ]
 
 # Genera un'immagine per una singola persona usando il layout standard.
