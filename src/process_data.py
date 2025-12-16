@@ -435,7 +435,8 @@ def processa_dati(data_list):
             "colpevole": colpevole,
             "arousal": arousal
         },
-        "static_sample": static_sample  # IMPORTANTE: aggiungiamo il sample usato per bottoni/slider
+        "static_sample": static_sample,  # IMPORTANTE: aggiungiamo il sample usato per bottoni/slider
+        "phase2_list": phase2_list # [NEW] Export Phase 2 data for graph generation
     }
     return pacchetto
 
@@ -521,10 +522,13 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     # Mappatura SCL
     # processa_dati ha calcolato l'arousal.
     # Per il grafico conduttanza e lissajous, serve lo storico (lista di tuple).
+    
+    # [MODIFIED] Use ONLY Phase 2 data if available (User Request: 45s monitoring only)
+    # If phase2_list is in result_pacchetto, use it. Otherwise fallback to full list.
+    source_list = result_pacchetto.get("phase2_list", [])
+    
     storico_tuple = []
-    # Useremo tutta la data_list o solo la fase 2?
-    # I grafici di solito mostrano l'andamento. Usiamo tutto data_list.
-    for d in data_list:
+    for d in source_list:
         storico_tuple.append((d.get("SCL0", 0), d.get("SCL1", 0)))
         
     # LOGICA ASSET
@@ -574,7 +578,11 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         
         # [VECTOR] Get raw data
         # Note: get_conductance_data_points reads directly from JSONL file in its implementation
-        vec_a, vec_b, max_v_vec = conductance_graph.get_conductance_data_points()
+        
+        # [MODIFIED] Pass the specific dataset (Phase 2) to the vector generator
+        # instead of letting it read the file again.
+        vec_a, vec_b, max_v_vec = conductance_graph.get_conductance_data_points(source_list)
+        
         # [FIX] User reported A/B are inverted. Swapping them here.
         # Now: Series A (Solid) = vec_b (SCL1)
         #      Series B (Dashed) = vec_a (SCL0)

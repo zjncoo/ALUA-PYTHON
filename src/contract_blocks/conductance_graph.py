@@ -20,28 +20,45 @@ def load_data_from_jsonl(filename):
                     continue
     return data_list
 
-def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductance.png"):
+def genera_grafico_conduttanza(storico_dati_input=None, output_path="temp_conductance.png"):
     """
-    Genera un grafico di "conduttanza" leggendo direttamente da data/arduino_data.jsonl.
+    Genera un grafico di "conduttanza" leggendo direttamente da data/arduino_data.jsonl
+    OPPURE usando storico_dati_input se fornito.
     Il grafico è puramente estetico: niente assi, niente etichette, solo le curve.
     Dimensioni: 2070x294 pixel.
     """
 
-    # 1. CARICAMENTO DATI DAL FILE JSONL
-    # Il percorso è relativo a questo file: ../../data/arduino_data.jsonl
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "../../data/arduino_data.jsonl")
-    
-    data_list = load_data_from_jsonl(data_path)
+    # 1. CARICAMENTO DATI
+    if storico_dati_input:
+        # Se ci viene passato lo storico (già filtrato per Fase 2), lo usiamo direttamente.
+        # Ci aspettiamo una lista di tuple o dict [(scl0, scl1), ...] o [{SCL0:..., SCL1:...}]
+        # Normalizziamo a lista di tuple per sicurezza se non lo è già
+        dt = storico_dati_input
+    else:
+        # FALLBACK LEGACY: Carica tutto il file
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        data_path = os.path.join(base_dir, "../../data/arduino_data.jsonl")
+        data_list = load_data_from_jsonl(data_path)
+        # Converti in tuple
+        dt = []
+        for item in data_list:
+            dt.append((item.get("SCL0", 0), item.get("SCL1", 0)))
 
     # 2. ESTRAZIONE SERIE STORICHE SCL0 e SCL1
     vals_a = [] # SCL0
     vals_b = [] # SCL1
     
-    for item in data_list:
-        # Prende 0 se la chiave non esiste
-        vals_a.append(item.get("SCL0", 0))
-        vals_b.append(item.get("SCL1", 0))
+    for item in dt:
+        # Item può essere tupla (v0, v1) o dict
+        if isinstance(item, (list, tuple)) and len(item) >= 2:
+           vals_a.append(item[0])
+           vals_b.append(item[1])
+        elif isinstance(item, dict):
+           vals_a.append(item.get("SCL0", 0))
+           vals_b.append(item.get("SCL1", 0))
+
+
+
 
     # Controllo se abbiamo dati sufficienti
     if not vals_a or len(vals_a) < 2:
@@ -104,23 +121,36 @@ def genera_grafico_conduttanza(storico_dati_ignored, output_path="temp_conductan
     return output_path, max_val
 
 
-def get_conductance_data_points():
+def get_conductance_data_points(input_data_list=None):
     """
     Restituisce i dati grezzi (normalizzati tra 0 e 1) delle due curve
     per il disegno vettoriale diretto nel PDF.
+    
+    input_data_list: Opzionale. Se fornito, usa questi dati (es. solo Fase 2).
+                     Può essere lista di dict o lista di tuple.
+    
     Ritorna: (data_list_A, data_list_B, max_val_assoluto)
     Dove ogni data_list è [y1, y2, y3...] (valori float 0.0-1.0)
     """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "../../data/arduino_data.jsonl")
-    data_list = load_data_from_jsonl(data_path)
+
+    if input_data_list is not None:
+        data_list = input_data_list
+    else:
+        # Fallback: Load from file
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        data_path = os.path.join(base_dir, "../../data/arduino_data.jsonl")
+        data_list = load_data_from_jsonl(data_path)
 
     vals_a = []
     vals_b = []
     
     for item in data_list:
-        vals_a.append(item.get("SCL0", 0))
-        vals_b.append(item.get("SCL1", 0))
+        if isinstance(item, dict):
+            vals_a.append(item.get("SCL0", 0))
+            vals_b.append(item.get("SCL1", 0))
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            vals_a.append(item[0])
+            vals_b.append(item[1])
 
     if not vals_a or len(vals_a) < 2:
         return [], [], 0
@@ -137,3 +167,4 @@ def get_conductance_data_points():
     norm_b = [float(v) / float(max_val) for v in vals_b_smooth]
     
     return norm_a, norm_b, max_val
+
