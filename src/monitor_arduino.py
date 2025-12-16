@@ -3,7 +3,7 @@ import time
 import json
 
 # --- AGGIORNA CON LA TUA PORTA USB ---
-SERIAL_PORT = "/dev/cu.usbmodem2101"
+SERIAL_PORT = "/dev/cu.usbmodem1301"
 BAUD_RATE = 115200
 OUTPUT_FILE = "../data/arduino_data.jsonl"
 
