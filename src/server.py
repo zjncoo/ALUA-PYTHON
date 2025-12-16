@@ -91,9 +91,10 @@ class ProcessManager:
             t = threading.Thread(target=self._read_output, daemon=True)
             t.start()
             
-            # Start Data File Watcher
-            self.data_thread = threading.Thread(target=self._watch_data_file, daemon=True)
-            self.data_thread.start()
+            # [DISABLED] File watcher - now using only stdout for real-time updates
+            # Using stdout is faster and avoids duplicate DATA events
+            # self.data_thread = threading.Thread(target=self._watch_data_file, daemon=True)
+            # self.data_thread.start()
             
             return True, "Processo avviato"
         except Exception as e:
@@ -112,9 +113,10 @@ class ProcessManager:
             self.process = None
             self.state["is_started"] = False
             
-            if self.data_thread:
-                self.data_thread.join(timeout=1)
-                self.data_thread = None
+            # [DISABLED] File watcher cleanup - thread is no longer started
+            # if self.data_thread:
+            #     self.data_thread.join(timeout=1)
+            #     self.data_thread = None
                 
             return True, "Processo terminato"
         return False, "Nessun processo attivo"
@@ -194,11 +196,10 @@ class ProcessManager:
                         
                         if evt_type == "PHASE":
                             self.state["last_phase"] = data
-                        # Note: We now get DATA from file, but if main.py still emits it, we overwrite
+                        # [FIX] Process DATA events from stdout for real-time button updates
+                        # Both stdout and file events are now processed to ensure low latency
                         elif evt_type == "DATA": 
-                             # Prefer file data, ignore stdout DATA if possible to avoid dupes/race
-                             # self.state["last_data"] = data
-                             pass 
+                             self.state["last_data"] = data 
                         elif evt_type == "STEP" and data.get("category") == "AUDIO":
                             self.state["current_audio"] = data
                         elif evt_type == "CHECK":
@@ -226,6 +227,116 @@ def start_experience():
 def stop_experience():
     success, msg = manager.stop_process()
     return {"success": success, "message": msg}
+
+# ========================================
+# THERMAL ROLL API ENDPOINTS
+# ========================================
+
+@app.get("/api/roll-status")
+def get_roll_status():
+    """
+    Returns the current status of the thermal paper roll.
+    
+    Response:
+    {
+        "initialized": true/false,
+        "remaining_mm": 28500.5,
+        "remaining_percentage": 95.0,
+        "initial_length_mm": 30000,
+        "contracts_printed": 5,
+        "average_mm_per_contract": 685.3,
+        "estimated_contracts_remaining": 41,
+        "last_updated": "2025-12-16T22:25:00",
+        "status": "ok" | "warning" | "critical",
+        "message": "Carta sufficiente"
+    }
+    """
+    try:
+        sys.path.append(os.path.join(WORKING_DIR, 'software_stampa'))
+        from thermal_roll_tracker import get_tracker
+        
+        tracker = get_tracker()
+        
+        # Check if initialized
+        if tracker.state['initial_length_mm'] == 0:
+            return {
+                "initialized": False,
+                "status": "uninitialized",
+                "message": "Rotolo non inizializzato. Usa /api/roll-reset per inizializzare."
+            }
+        
+        status_data = tracker.get_status()
+        
+        # Determine status level
+        pct = status_data['remaining_percentage']
+        if pct < 10:
+            level = "critical"
+            msg = "🔴 Sostituire rotolo urgentemente!"
+        elif pct < 20:
+            level = "warning"
+            msg = "⚠️  Carta in esaurimento"
+        else:
+            level = "ok"
+            msg = "Carta sufficiente"
+        
+        return {
+            "initialized": True,
+            "remaining_mm": round(status_data['remaining_length_mm'], 2),
+            "remaining_percentage": round(status_data['remaining_percentage'], 1),
+            "initial_length_mm": status_data['initial_length_mm'],
+            "contracts_printed": status_data['contracts_printed'],
+            "average_mm_per_contract": round(status_data['average_mm_per_contract'], 2),
+            "estimated_contracts_remaining": status_data['estimated_contracts_remaining'],
+            "last_updated": tracker.state.get('last_updated'),
+            "status": level,
+            "message": msg
+        }
+    except Exception as e:
+        return {
+            "initialized": False,
+            "status": "error",
+            "message": f"Errore: {str(e)}"
+        }
+
+@app.post("/api/roll-reset")
+def reset_roll(length_mm: int = 30000):
+    """
+    Initialize or reset the thermal paper roll with a new length.
+    
+    Parameters:
+    - length_mm: Length of the new roll in millimeters (default: 30000mm = 30m)
+    
+    Usage:
+    POST /api/roll-reset?length_mm=30000
+    
+    Response:
+    {
+        "success": true,
+        "message": "Rotolo inizializzato: 30000 mm"
+    }
+    """
+    try:
+        sys.path.append(os.path.join(WORKING_DIR, 'software_stampa'))
+        from thermal_roll_tracker import initialize_roll
+        
+        # Validate input
+        if length_mm <= 0 or length_mm > 100000:  # Max 100 meters
+            return {
+                "success": False,
+                "message": "Lunghezza non valida. Usa un valore tra 1 e 100000 mm."
+            }
+        
+        initialize_roll(length_mm)
+        
+        return {
+            "success": True,
+            "message": f"Rotolo inizializzato: {length_mm} mm ({length_mm/1000} metri)"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Errore inizializzazione: {str(e)}"
+}
 
 @app.websocket("/ws/logs")
 async def websocket_endpoint(websocket: WebSocket):

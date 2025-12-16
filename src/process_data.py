@@ -839,6 +839,25 @@ def main():
         pdf_path = contract_generator.genera_pdf_contratto_A4(dati_contratto)
         if pdf_path:
             print(f" ✨ CONTRATTO GENERATO: {pdf_path}")
+            
+            # [NEW] Salva metadata del contratto per il roll tracker
+            # Questo permette a main.py di conoscere fascia e tipi di relazione
+            # per calcolare con precisione la lunghezza del PDF stampato
+            metadata_path = "../output/last_contract_metadata.json"
+            try:
+                metadata = {
+                    "fascia": elaborati.get('fascia', 2),
+                    "tipi_selezionati": dati_contratto['elaborati'].get('tipi_selezionati', []),
+                    "compatibilita": elaborati.get('compatibilita', 50),
+                    "contract_id": assets.get('contract_id', ''),
+                    "pdf_path": pdf_path
+                }
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata, f, indent=2)
+                print(f" 📝 Metadata salvati: {metadata_path}")
+            except Exception as e:
+                print(f" ⚠️  Impossibile salvare metadata: {e}")
+            
             # Opzionale: apri il PDF automaticamente
             # os.system(f"open '{pdf_path}'")
         else:

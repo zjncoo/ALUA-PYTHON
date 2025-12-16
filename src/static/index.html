@@ -274,6 +274,177 @@
             transform: translateY(0);
             pointer-events: all;
         }
+
+        /* PRINTER WIDGET */
+        .printer-widget {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .printer-widget:hover {
+            background: #f0f0f0;
+            transform: translateY(-2px);
+            box-shadow: 2px 2px 0 black;
+        }
+
+        .printer-icon {
+            font-size: 1.2rem;
+        }
+
+        .printer-status {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.7rem;
+            line-height: 1.2;
+        }
+
+        .printer-percent {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .printer-label {
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* MODAL */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border: 3px solid black;
+            padding: 2rem;
+            min-width: 500px;
+            max-width: 600px;
+            box-shadow: 8px 8px 0 black;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid black;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: red;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-item {
+            padding: 1rem;
+            border: 1px solid #ddd;
+            background: #fafafa;
+        }
+
+        .status-label {
+            font-size: 0.7rem;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .status-large {
+            grid-column: 1 / -1;
+            text-align: center;
+            background: #000;
+            color: white;
+            font-size: 3rem;
+        }
+
+        .status-warning {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+
+        .status-critical {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid black;
+            background: white;
+            font-family: inherit;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-btn:hover {
+            background: black;
+            color: white;
+        }
+
+        .modal-btn.danger {
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+
+        .modal-btn.danger:hover {
+            background: #dc3545;
+            color: white;
+        }
     </style>
 </head>
 
@@ -290,7 +461,15 @@
             <img src="/static/logo_alua.svg" height="30">
             <div>CONTROL ROOM <span style="font-size: 0.7em; color: #999;">V2.0</span></div>
         </div>
-        <div style="text-align: right;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <!-- PRINTER WIDGET -->
+            <div class="printer-widget" onclick="openPrinterModal()">
+                <div class="printer-icon">🖨️</div>
+                <div class="printer-status">
+                    <div class="printer-percent" id="printer-percent">---</div>
+                    <div class="printer-label">CARTA</div>
+                </div>
+            </div>
             <div id="status-badge"
                 style="background: black; color: white; padding: 0.25rem 0.75rem; font-weight: bold;">IDLE</div>
         </div>
@@ -488,7 +667,79 @@
 
     </main>
 
+    <!-- PRINTER MODAL -->
+    <div id="printer-modal" class="modal-overlay" onclick="closePrinterModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title">🖨️ Stato Rotolo Termico</div>
+                <button class="modal-close" onclick="closePrinterModal()">×</button>
+            </div>
 
+            <div class="status-grid">
+                <div class="status-item status-large" id="modal-percent">
+                    <div class="status-value">---</div>
+                </div>
+
+                <div class="status-item">
+                    <div class="status-label">Carta Rimanente</div>
+                    <div class="status-value" id="modal-remaining">--- mm</div>
+                </div>
+
+                <div class="status-item">
+                    <div class="status-label">Lunghezza Iniziale</div>
+                    <div class="status-value" id="modal-initial">--- mm</div>
+                </div>
+
+                <div class="status-item">
+                    <div class="status-label">Contratti Stampati</div>
+                    <div class="status-value" id="modal-printed">---</div>
+                </div>
+
+                <div class="status-item">
+                    <div class="status-label">Media per Contratto</div>
+                    <div class="status-value" id="modal-average">--- mm</div>
+                </div>
+
+                <div class="status-item">
+                    <div class="status-label">Contratti Stimati</div>
+                    <div class="status-value" id="modal-estimated">---</div>
+                </div>
+
+                <div class="status-item">
+                    <div class="status-label">Ultimo Aggiornamento</div>
+                    <div class="status-value" style="font-size: 0.9rem;" id="modal-updated">---</div>
+                </div>
+            </div>
+
+            <div id="modal-message"
+                style="padding: 1rem; text-align: center; font-weight: bold; border: 2px solid #ddd; margin-bottom: 1rem;">
+                ---
+            </div>
+
+            <!-- RESET PANEL (Hidden by default) -->
+            <div id="reset-panel"
+                style="display: none; padding: 1.5rem; border: 2px solid #dc3545; background: #fff; margin-bottom: 1rem;">
+                <div style="font-weight: bold; margin-bottom: 1rem; color: #dc3545;">
+                    ⚠️ RESET ROTOLO TERMICO
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.8rem;">Lunghezza nuovo rotolo
+                        (mm):</label>
+                    <input type="number" id="reset-length-input" value="30000" min="1" max="100000"
+                        style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid #000;">
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button class="modal-btn" onclick="cancelReset()" style="flex: 1;">Annulla</button>
+                    <button class="modal-btn danger" onclick="confirmReset()" style="flex: 1;">✓ Conferma Reset</button>
+                </div>
+            </div>
+
+            <div id="modal-actions" class="modal-actions">
+                <button class="modal-btn" onclick="closePrinterModal()">Chiudi</button>
+                <button class="modal-btn danger" onclick="showResetPanel()">🔄 Reset Rotolo</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         // --- STATE ---
@@ -797,10 +1048,152 @@
             clearInterval(timerInterval);
         }
 
+        // --- PRINTER WIDGET FUNCTIONS ---
+        let printerStatusInterval;
+
+        async function fetchPrinterStatus() {
+            try {
+                const response = await fetch('/api/roll-status');
+                const data = await response.json();
+                updatePrinterUI(data);
+            } catch (error) {
+                console.error('Error fetching printer status:', error);
+                document.getElementById('printer-percent').innerText = 'ERR';
+            }
+        }
+
+        function updatePrinterUI(data) {
+            // Update widget badge
+            const widgetPercent = document.getElementById('printer-percent');
+            const widget = document.querySelector('.printer-widget');
+
+            if (!data.initialized) {
+                widgetPercent.innerText = 'N/A';
+                widget.style.borderColor = '#999';
+            } else {
+                widgetPercent.innerText = Math.round(data.remaining_percentage) + '%';
+
+                // Color coding
+                if (data.status === 'critical') {
+                    widget.style.borderColor = '#dc3545';
+                    widget.style.background = '#f8d7da';
+                } else if (data.status === 'warning') {
+                    widget.style.borderColor = '#ffc107';
+                    widget.style.background = '#fff3cd';
+                } else {
+                    widget.style.borderColor = '#000';
+                    widget.style.background = 'white';
+                }
+            }
+
+            // Update modal
+            if (data.initialized) {
+                const percent = Math.round(data.remaining_percentage);
+                document.getElementById('modal-percent').innerHTML = `<div class="status-value">${percent}%</div>`;
+                document.getElementById('modal-remaining').innerText = data.remaining_mm + ' mm';
+                document.getElementById('modal-initial').innerText = data.initial_length_mm + ' mm';
+                document.getElementById('modal-printed').innerText = data.contracts_printed;
+                document.getElementById('modal-average').innerText = data.average_mm_per_contract + ' mm';
+                document.getElementById('modal-estimated').innerText = data.estimated_contracts_remaining;
+                document.getElementById('modal-updated').innerText = data.last_updated || '---';
+
+                const modalMessage = document.getElementById('modal-message');
+                modalMessage.innerText = data.message;
+                modalMessage.className = '';
+                modalMessage.style.border = '2px solid #ddd';
+
+                if (data.status === 'critical') {
+                    modalMessage.style.background = '#f8d7da';
+                    modalMessage.style.borderColor = '#dc3545';
+                    modalMessage.style.color = '#dc3545';
+                } else if (data.status === 'warning') {
+                    modalMessage.style.background = '#fff3cd';
+                    modalMessage.style.borderColor = '#ffc107';
+                    modalMessage.style.color = '#856404';
+                } else {
+                    modalMessage.style.background = '#d4edda';
+                    modalMessage.style.borderColor = '#22c55e';
+                    modalMessage.style.color = '#155724';
+                }
+
+                // Color percentage box
+                const percentBox = document.getElementById('modal-percent');
+                if (data.status === 'critical') {
+                    percentBox.style.background = '#dc3545';
+                } else if (data.status === 'warning') {
+                    percentBox.style.background = '#ffc107';
+                    percentBox.style.color = '#000';
+                } else {
+                    percentBox.style.background = '#000';
+                    percentBox.style.color = '#fff';
+                }
+            } else {
+                document.getElementById('modal-percent').innerHTML = '<div class="status-value">N/A</div>';
+                document.getElementById('modal-message').innerText = data.message || 'Rotolo non inizializzato';
+            }
+        }
+
+        function openPrinterModal() {
+            fetchPrinterStatus(); // Refresh data when opening
+            document.getElementById('printer-modal').classList.add('open');
+        }
+
+        function closePrinterModal(event) {
+            if (event && event.target.id !== 'printer-modal') return;
+            document.getElementById('printer-modal').classList.remove('open');
+            // Ensure reset panel is hidden when closing modal
+            cancelReset();
+        }
+
+        async function resetPrinterRoll() {
+            // Show reset panel instead of using prompt
+            showResetPanel();
+        }
+
+        function showResetPanel() {
+            document.getElementById('reset-panel').style.display = 'block';
+            document.getElementById('modal-actions').style.display = 'none';
+            document.getElementById('reset-length-input').focus();
+        }
+
+        function cancelReset() {
+            document.getElementById('reset-panel').style.display = 'none';
+            document.getElementById('modal-actions').style.display = 'flex';
+        }
+
+        async function confirmReset() {
+            const lengthInput = document.getElementById('reset-length-input');
+            const lengthMm = parseInt(lengthInput.value);
+
+            if (isNaN(lengthMm) || lengthMm <= 0 || lengthMm > 100000) {
+                alert('Lunghezza non valida! Usa un valore tra 1 e 100000 mm.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/roll-reset?length_mm=${lengthMm}`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    fetchPrinterStatus(); // Refresh display
+                    cancelReset(); // Hide reset panel
+                } else {
+                    alert('❌ ' + data.message);
+                }
+            } catch (error) {
+                alert('Errore durante il reset: ' + error.message);
+            }
+        }
+
         // --- INIT ---
         function init() {
             console.log("Initializing Dashboard...");
             connectWs();
+
+            // Start printer status polling
+            fetchPrinterStatus();
+            printerStatusInterval = setInterval(fetchPrinterStatus, 10000); // Every 10 seconds
         }
 
         init();

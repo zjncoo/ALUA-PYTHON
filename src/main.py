@@ -307,10 +307,10 @@ def main():
         subprocess.run([sys.executable, "process_data.py"], check=True)
         
         # ========================================
-        # STAMPA CONTRATTO
+        # STAMPA CONTRATTO (con controllo carta)
         # ========================================
         
-        # Il contratto è stato generato, ora lo stampiamo
+        # Il contratto è stato generato, ora controlliamo se c'è abbastanza carta
         # Cerchiamo il PDF più recente nella cartella contracts
         contracts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "output", "contracts")
         
@@ -323,8 +323,87 @@ def main():
                 pdf_files.sort(key=lambda x: os.path.getmtime(os.path.join(contracts_dir, x)), reverse=True)
                 latest_pdf = os.path.join(contracts_dir, pdf_files[0])
                 
-                print(f"\n[PRINT] Invio contratto alla stampante: {pdf_files[0]}")
-                printer.invia_a_stampante(latest_pdf)
+                # ========================================
+                # CONTROLLO CARTA PRIMA DELLA STAMPA
+                # ========================================
+                
+                print("\n[CHECK] Verifica disponibilità carta nel rotolo...")
+                
+                try:
+                    # Importa il tracker
+                    sys.path.append(os.path.join(os.path.dirname(__file__), 'software_stampa'))
+                    from thermal_roll_tracker import get_tracker
+                    
+                    # Calcola lunghezza necessaria per questo contratto
+                    estimated_length = 0
+                    
+                    try:
+                        # Prova a leggere le dimensioni reali dal PDF
+                        from PyPDF2 import PdfReader
+                        
+                        reader = PdfReader(latest_pdf)
+                        for page in reader.pages:
+                            height_pts = float(page.mediabox.height)
+                            estimated_length += height_pts * 0.352778
+                        
+                        print(f"[CHECK] Lunghezza contratto: {estimated_length:.2f} mm")
+                        
+                    except (ImportError, Exception) as e:
+                        # Fallback: stima dalla metadata
+                        metadata_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "output", "last_contract_metadata.json")
+                        
+                        if os.path.exists(metadata_path):
+                            with open(metadata_path, 'r') as f:
+                                metadata = json.load(f)
+                            
+                            fascia = metadata.get('fascia', 2)
+                            num_rel = len(metadata.get('tipi_selezionati', []))
+                            
+                            page1 = 274
+                            page2 = 200 + (fascia - 1) * 50 + num_rel * 30
+                            estimated_length = page1 + page2
+                            
+                            print(f"[CHECK] Lunghezza stimata contratto: {estimated_length:.0f} mm")
+                        else:
+                            estimated_length = 700  # Stima generica
+                            print(f"[CHECK] Lunghezza ipotizzata: {estimated_length:.0f} mm")
+                    
+                    # Ottieni stato rotolo
+                    tracker = get_tracker()
+                    remaining = tracker.get_remaining_length()
+                    
+                    # Aggiungi margine di sicurezza del 5%
+                    required_with_margin = estimated_length * 1.05
+                    
+                    print(f"[CHECK] Carta rimanente: {remaining:.2f} mm")
+                    print(f"[CHECK] Carta necessaria (con margine 5%): {required_with_margin:.2f} mm")
+                    
+                    # VERIFICA DISPONIBILITÀ
+                    if remaining >= required_with_margin:
+                        print(f"[CHECK] ✅ Carta sufficiente! Procedo con la stampa...")
+                        print(f"\n[PRINT] Invio contratto alla stampante: {pdf_files[0]}")
+                        printer.invia_a_stampante(latest_pdf)
+                    else:
+                        # CARTA INSUFFICIENTE - BLOCCA STAMPA
+                        deficit = required_with_margin - remaining
+                        print("\n" + "="*60)
+                        print("🔴 ERRORE: CARTA INSUFFICIENTE NEL ROTOLO")
+                        print("="*60)
+                        print(f"  Carta rimanente:  {remaining:.2f} mm")
+                        print(f"  Carta necessaria: {required_with_margin:.2f} mm")
+                        print(f"  Deficit:          {deficit:.2f} mm")
+                        print("\n  ⛔ STAMPA BLOCCATA")
+                        print("  ⚠️  Sostituire il rotolo prima di procedere!")
+                        print("="*60 + "\n")
+                        
+                        # NON chiamare printer.invia_a_stampante()
+                        
+                except Exception as e:
+                    # Se il tracker non è disponibile, stampa comunque (comportamento legacy)
+                    print(f"[WARN] Controllo carta non disponibile: {e}")
+                    print(f"[PRINT] Procedo comunque con la stampa: {pdf_files[0]}")
+                    printer.invia_a_stampante(latest_pdf)
+                    
             else:
                 print("[PRINT] Nessun contratto trovato da stampare")
         else:
@@ -351,6 +430,116 @@ def main():
     
     # Audio 14
     play_audio(AUDIO_FILES["14"], "14")
+    
+    # ========================================
+    # AGGIORNAMENTO ROTOLO CARTA TERMICA
+    # ========================================
+    
+    try:
+        # Importa il tracker del rotolo
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'software_stampa'))
+        from thermal_roll_tracker import record_print, get_tracker
+        
+        # Leggi i metadata del contratto appena generato
+        metadata_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "output", "last_contract_metadata.json")
+        
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            contract_id = metadata.get('contract_id', datetime.now().strftime("%Y%m%d-%H%M"))
+            pdf_path = metadata.get('pdf_path', '')
+            
+            # CALCOLO LUNGHEZZA REALE DAL PDF
+            # Invece di stimare, leggiamo le dimensioni effettive dal PDF generato
+            total_length_mm = 0
+            
+            try:
+                # Importa PyPDF2 per leggere il PDF
+                from PyPDF2 import PdfReader
+                
+                if os.path.exists(pdf_path):
+                    reader = PdfReader(pdf_path)
+                    num_pages = len(reader.pages)
+                    
+                    # Leggi l'altezza di ogni pagina e somma
+                    for page_num in range(num_pages):
+                        page = reader.pages[page_num]
+                        # MediaBox formato: [x1, y1, x2, y2] in punti (1pt = 0.352778mm)
+                        mediabox = page.mediabox
+                        height_pts = float(mediabox.height)
+                        height_mm = height_pts * 0.352778  # Converti punti in mm
+                        total_length_mm += height_mm
+                        
+                        print(f"[ROLL] Pagina {page_num + 1}: {height_mm:.2f} mm")
+                    
+                    print(f"[ROLL] Lunghezza totale PDF: {total_length_mm:.2f} mm ({num_pages} pagine)")
+                    
+                else:
+                    raise FileNotFoundError(f"PDF non trovato: {pdf_path}")
+                    
+            except ImportError:
+                # Fallback se PyPDF2 non è installato
+                print("[WARN] PyPDF2 non installato, uso calcolo basato su dimensioni standard")
+                
+                # Usa le dimensioni reali dal contract_generator
+                # Pagina 1: PSD_HEIGHT * (PDF_W_MM / PSD_WIDTH) = 3237 * (210/2482) = 273.83mm
+                page1_height = 3237 * (210.0 / 2482)  # ~274mm
+                
+                # Pagina 2: stima da fascia e relazioni
+                fascia_rischio = metadata.get('fascia', 2)
+                num_relazioni = len(metadata.get('tipi_selezionati', []))
+                
+                base_page2 = 200
+                risk_add = (fascia_rischio - 1) * 50
+                rel_add = num_relazioni * 30
+                page2_height = base_page2 + risk_add + rel_add
+                
+                total_length_mm = page1_height + page2_height
+                print(f"[ROLL] Stima lunghezza: Pag1={page1_height:.0f}mm + Pag2={page2_height:.0f}mm = {total_length_mm:.0f}mm")
+            
+        else:
+            # Fallback: stima generica se il metadata non esiste
+            print("[WARN] Metadata contratto non trovato, uso stima generica")
+            contract_id = datetime.now().strftime("%Y%m%d-%H%M")
+            total_length_mm = 700  # Stima media
+        
+        # Registra la stampa nel tracker
+        record_print(
+            length_mm=total_length_mm,
+            contract_id=contract_id
+        )
+        
+        # Log dello stato del rotolo
+        tracker = get_tracker()
+        status = tracker.get_status()
+        
+        print("\n" + "-"*60)
+        print("📜 STATO ROTOLO CARTA TERMICA")
+        print("-"*60)
+        print(f"  Lunghezza contratto stampato: {total_length_mm:.2f} mm")
+        print(f"  Lunghezza rimanente:           {status['remaining_length_mm']:.2f} mm ({status['remaining_percentage']:.1f}%)")
+        print(f"  Contratti stampati totali:     {status['contracts_printed']}")
+        
+        if status['contracts_printed'] > 0:
+            print(f"  Media mm per contratto:        {status['average_mm_per_contract']:.2f} mm")
+            print(f"  Contratti rimanenti (stima):   {status['estimated_contracts_remaining']}")
+        
+        # Avviso se il rotolo sta finendo
+        if status['remaining_percentage'] < 10:
+            print(f"\n  🔴 ATTENZIONE: Rimane solo il {status['remaining_percentage']:.1f}% del rotolo!")
+            print(f"     Sostituire il rotolo il prima possibile!")
+        elif status['remaining_percentage'] < 20:
+            print(f"\n  ⚠️  AVVISO: Rimane solo il {status['remaining_percentage']:.1f}% del rotolo!")
+        
+        print("-"*60 + "\n")
+        
+    except Exception as e:
+        print(f"\n[WARN] Impossibile aggiornare lo stato del rotolo: {e}")
+        print("       Verifica che il rotolo sia stato inizializzato con:")
+        print("       cd src/software_stampa && python3 setup_roll.py\n")
+        import traceback
+        traceback.print_exc()
     
     # ========================================
     # FINE ESPERIENZA
