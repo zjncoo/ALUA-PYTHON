@@ -46,8 +46,8 @@ void setupSlider() {
 // Loop: aggiorna SEMPRE i valori degli slider
 // --------------------------------------------------
 void loopSlider() {
-  int raw0 = analogRead(SLIDER0_PIN);
-  int raw1 = analogRead(SLIDER1_PIN);
+  int raw0 = 1023 - analogRead(SLIDER0_PIN);
+  int raw1 = 1023 - analogRead(SLIDER1_PIN);
 
   // Smoothing (EMA - exponential moving average)
   sliderValue[0] =

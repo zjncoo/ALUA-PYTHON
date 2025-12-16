@@ -11,13 +11,13 @@ const int buttonPins[NUM_BUTTONS] = {
     6,
     7,
     8,
-    9 // B0..B5 (persona A)
+    9, // B0..B5 (persona A)
     10,
     11,
     12,
     13,
     A2,
-    A3 // B6..B11 (persona B)
+    A3, // B6..B11 (persona B)
 };
 
 // Stato memorizzato (1 = il bottone è stato premuto almeno una volta)
