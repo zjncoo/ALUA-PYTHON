@@ -228,9 +228,6 @@ def main():
     # TRIGGER PER SECONDA FASE
     # ========================================
     
-    # Dopo audio 09, aspetta 1 secondo come da specifiche
-    time.sleep(1)
-    
     print(json.dumps({"type": "PHASE", "name": "ANALISI TRIGGER", "next": "SECONDA FASE"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     # Avvio monitoraggio PRIMA dell'audio 10 (per evitare ritardi apertura porta)
     start_arduino_monitoring("TRIGGER CHECK")
