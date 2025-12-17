@@ -595,22 +595,10 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         log.error(f"Errore Graph: {e}")
 
     # D. QR Code
-    # Costruiamo URL.
-    # Parametri: gsr0, gsr1, sl0, sl1, comp, btn0, btn1, bad, fascia, id
+    # Costruiamo URL con solo i dati necessari
     
-    # 1. Recupero ULTIMI valori (per compatibilità con altri sistemi/display)
-    # [FIX] Use source_list (Phase 2) if available to avoid trailing zeros/noise
+    # Usa source_list (Phase 2) se disponibile per calcoli più accurati
     target_list = source_list if source_list else data_list
-    
-    last_scl0 = target_list[-1].get("SCL0", 0) if target_list else 0
-    last_scl1 = target_list[-1].get("SCL1", 0) if target_list else 0
-
-    # 2. Calcolo MEDIE (per la frequenza del Lissajous visualizzato su Web)
-    if target_list:
-        avg_scl0 = sum(d.get("SCL0", 0) for d in target_list) / len(target_list)
-        avg_scl1 = sum(d.get("SCL1", 0) for d in target_list) / len(target_list)
-    else:
-        avg_scl0, avg_scl1 = 0.0, 0.0
     
     elab = result_pacchetto.get("elaborati", {})
     colpevole = elab.get("colpevole", {})
@@ -659,6 +647,18 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     disc_sl = max(0.0, diff_sl - 5)
     score_slider_val = clamp(1.0 - (disc_sl / 100.0), 0.0, 1.0)
 
+    # Calcolo MEDIE SCL (usate per Lissajous e grafico comparativo)
+    if target_list:
+        avg_scl0 = sum(d.get("SCL0", 0) for d in target_list) / len(target_list)
+        avg_scl1 = sum(d.get("SCL1", 0) for d in target_list) / len(target_list)
+    else:
+        avg_scl0, avg_scl1 = 0.0, 0.0
+
+    # Recupero ULTIMI valori SCL (per uso interno/PDF, NON trasmessi nel QR)
+    last_scl0 = target_list[-1].get("SCL0", 0) if target_list else 0
+    last_scl1 = target_list[-1].get("SCL1", 0) if target_list else 0
+
+    # Params completo (include scl0/scl1 per uso interno nel PDF)
     params = {
         'id': unified_id,
         'date': date_str,
@@ -667,21 +667,20 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         'cost': risk_data.get('price', "0,00€"),
         'phrase': risk_data.get('phrase', ""),
         'types': types_str, # Sostituisce btn0/btn1 con i nomi veri
-        'scl0': int(last_scl0),
-        'scl1': int(last_scl1),
+        'scl0': int(last_scl0),  # [INTERNO] Disponibile per PDF ma non nel QR
+        'scl1': int(last_scl1),  # [INTERNO] Disponibile per PDF ma non nel QR
         'avg0': f"{avg_scl0:.2f}",
         'avg1': f"{avg_scl1:.2f}",
-        'sl0': slider0,
-        'sl1': slider1,
-        'scl': f"{score_scl_val:.2f}",
-        'sli': f"{score_slider_val:.2f}",
         'bad': id_colp
     }
 
-    # Passiamo i params al generatore esterno
+    # Params per QR (senza scl0/scl1 per ridurre dimensione QR)
+    qr_params = {k: v for k, v in params.items() if k not in ['scl0', 'scl1']}
+
+    # Passiamo solo i qr_params al generatore esterno
     path_qr = os.path.join(output_dir, "temp_qr.png")
     try:
-        link_completo = qrcode_generator.generate_contract_qr_from_params(params, path_qr)
+        link_completo = qrcode_generator.generate_contract_qr_from_params(qr_params, path_qr)
         assets["qr_link"] = link_completo
         assets["qr_code"] = path_qr
         
