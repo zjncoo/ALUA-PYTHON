@@ -465,11 +465,11 @@ def genera_pdf_contratto_A4(dati):
         pdf.multi_cell(px(c['w']), 6, txt=f"{risk_phrase}".upper(), align='L')
 
     # EVIDENZIATORE FASCIA RISCHIO
-    risk_box_x = 855
-    risk_box_start_y = 2010
+    risk_box_x = 858
+    risk_box_start_y = 2012
     risk_box_w = 793
-    risk_box_h = 151
-    risk_box_gap = 22
+    risk_box_h = 151.75  # (697px - 3*30px gaps) / 4 squares = 607/4
+    risk_box_gap = 30  # Gap between squares
     if 1 <= fascia <= 4:
         offset_idx = fascia - 1
         current_y = risk_box_start_y + (offset_idx * (risk_box_h + risk_box_gap))
