@@ -40,7 +40,7 @@ SCL_HALF_DURATION_MS   = SCL_VALID_DURATION_MS // 2                   # 20000
 SCL_MIN_VALID          = 0
 SCL_MAX_VALID          = 500 #da valutare
 SCL_MAX_STEP           = 80 #da valutare
-THRESHOLD_REL_SCL      = 0.10  # 10% #da valutare
+THRESHOLD_REL_SCL      = 0.05  # 5% #da valutare
 
 # VALORI PER SLIDER
 # Lo slider dell'Arduino restituisce un valore analogico da 0 a 1023.
@@ -86,14 +86,15 @@ def calcola_score_bottoni(sample):
     set0 = {RELAZIONI.index(x) for x in p0_labels if x in RELAZIONI}
     set1 = {RELAZIONI.index(x) for x in p1_labels if x in RELAZIONI}
 
-    max_on = max(len(set0), len(set1))
+    union_len = len(set0 | set1)
     matching = len(set0 & set1)
 
     log.debug(f"[SCORE_BUTTONS] Labels P0={p0_labels} -> Idx={sorted(set0)}")
     log.debug(f"[SCORE_BUTTONS] Labels P1={p1_labels} -> Idx={sorted(set1)}")
-    log.debug(f"[SCORE_BUTTONS] Max={max_on}, Match={matching}")
+    log.debug(f"[SCORE_BUTTONS] Union={union_len}, Match={matching}")
 
-    return 0.0 if max_on == 0 else matching / max_on
+    # Jaccard Index (più severo di Match/Max)
+    return 0.0 if union_len == 0 else matching / union_len
 
 # 2. SCORE SLIDER
 # confronta i due slider come percentuali 0–100; penalizza solo differenze oltre una tolleranza del 5%
@@ -109,7 +110,7 @@ def calcola_score_slider(sample):
     v1 = slider1 * SLIDER_SCALE
 
     diff = abs(v0 - v1)              # 0..100
-    discrepanza = max(0.0, diff - 5) # tolleranza 5%
+    discrepanza = max(0.0, diff - 2) # tolleranza 2%
 
     log.debug(f"[SCORE_SLIDER] Raw: S0={slider0}, S1={slider1}")
     log.debug(f"[SCORE_SLIDER] Norm: V0={v0:.2f}%, V1={v1:.2f}%, Diff={diff:.2f}% (tol. 5%)")
@@ -186,7 +187,8 @@ def valuta_trend_scl(session_data):
             }
             continue
 
-        delta = m1 - m2
+        # Arousual = AUMENTO della conduttanza (m2 > m1)
+        delta = m2 - m1
         rel = delta / m1
         aro = (rel >= THRESHOLD_REL_SCL)
 
