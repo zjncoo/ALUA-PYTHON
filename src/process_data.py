@@ -384,6 +384,16 @@ def processa_dati(data_list):
              
         log.debug(f"Static Sample scelto tramite Global Best Search")
 
+        # FALLBACK BOTTONI: Se una lista è vuota (es. errore sensore), assegna "CIRCOSTANZIALE" d'ufficio
+        # Questo permette di calcolare lo score (senza dare 0%) e stampare qualcosa sul contratto.
+        if not static_sample.get("RELAZIONI_P0"):
+            static_sample["RELAZIONI_P0"] = ["CIRCOSTANZIALE"]
+            log.warning("[FALLBACK] P0 Buttons Empty -> Forcing 'CIRCOSTANZIALE'")
+
+        if not static_sample.get("RELAZIONI_P1"):
+            static_sample["RELAZIONI_P1"] = ["CIRCOSTANZIALE"]
+            log.warning("[FALLBACK] P1 Buttons Empty -> Forcing 'CIRCOSTANZIALE'")
+
         # Tutti i campioni da split_index in poi sono la Fase 2,
         # su cui analizzeremo il trend di SCL (arousal).
         phase2_list = data_list[split_index:]
