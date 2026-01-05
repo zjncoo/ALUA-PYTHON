@@ -31,10 +31,10 @@ WEIGHT_SLIDER  = 0.25
 WEIGHT_BUTTONS = 0.25
 
 # PARAMETRI AROUSAL SCL:
-# definiscono finestra temporale (5–45 s), validità del segnale e soglia di variazione
+# definiscono finestra temporale (0–40 s), validità del segnale e soglia di variazione
 # VALORI PER AROSUAL
-EXPERIMENT_DURATION_MS = 45000
-SCL_START_DELAY_MS     = 5000 #da valutare
+EXPERIMENT_DURATION_MS = 40000
+SCL_START_DELAY_MS     = 0 #da valutare
 SCL_VALID_DURATION_MS  = EXPERIMENT_DURATION_MS - SCL_START_DELAY_MS  # 40000
 SCL_HALF_DURATION_MS   = SCL_VALID_DURATION_MS // 2                   # 20000
 SCL_MIN_VALID          = 0
@@ -46,7 +46,7 @@ THRESHOLD_REL_SCL      = 0.05  # 5% #da valutare
 # Lo slider dell'Arduino restituisce un valore analogico da 0 a 1023.
 # Per confrontare facilmente i due slider, li convertiamo in una percentuale 0–100%.
 # SLIDER_SCALE è il fattore di conversione: moltiplichiamo il valore grezzo per (100 / 1023)
-# # così ogni valore dello slider diventa la sua percentuale reale.
+# così ogni valore dello slider diventa la sua percentuale reale.
 
 # RISCHIO: MAPPING PREZZI E LABELS
 # 1 = MINIMO, 2 = MODERATO, 3 = SIGNIFICATIVO, 4 = CATASTROFICO
@@ -119,7 +119,7 @@ def calcola_score_slider(sample):
     return clamp(score, 0.0, 1.0)
 
 # 3. AROUSAL SCL
-# divide la Fase 2 in due metà (5–25 s e 25–45 s), fa la media SCL in ciascuna,
+# divide la Fase 2 in due metà (0–20 s e 20–40 s), fa la media SCL in ciascuna,
 # filtra i campioni sporchi e valuta se c'è aumento di arousal per ciascuna persona
 def valuta_trend_scl(session_data):
     """

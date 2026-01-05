@@ -4,7 +4,8 @@ import os
 import signal
 import sys
 import json
-from threading import Thread
+from datetime import datetime
+from threading import Thread, Event
 import printer  # Per stampare il contratto
 
 # === CONFIGURAZIONE FILE AUDIO ===
@@ -25,7 +26,8 @@ AUDIO_FILES = {
     "12": "../assets/audio/12.wav",
     "12.1": "../assets/audio/12.1.wav",
     "13": "../assets/audio/13.wav",
-    "14": "../assets/audio/14.wav"
+    "14": "../assets/audio/14.wav",
+    "eyedeal": "../assets/audio/eyedeal.wav"
 }
 
 ARDUINO_SCRIPT = "monitor_arduino.py"
@@ -34,20 +36,57 @@ DATA_FILE = "../data/arduino_data.jsonl"
 # Variabili globali per il monitoraggio
 arduino_process = None
 phase2_start_time = None
+print_trigger = Event()
 
 
-def play_audio(file_path, audio_name=""):
-    """Riproduce un file audio usando 'afplay' (macOS) e attende la fine."""
-    print(f"[AUDIO] Riproduzione audio {audio_name}: {file_path}...")
+def play_audio(file_path, audio_name="", wait=True):
+    """
+    Riproduce un file audio usando 'afplay' (macOS) e attende la fine.
+    Se wait=False, l'audio parte in background e la funzione ritorna subito.
+    """
+    print(f"[AUDIO] Riproduzione audio {audio_name}: {file_path} (wait={wait})...")
     print(json.dumps({"type": "STEP", "category": "AUDIO", "status": "RUNNING", "detail": audio_name}), flush=True)  # [WEB SERVER] - Aggiorna lo stato dell'audio corrente
     try:
-        subprocess.run(["afplay", file_path], check=True)
-        print(f"[OK] Audio {audio_name} completato")
-        print(json.dumps({"type": "STEP", "category": "AUDIO", "status": "DONE", "detail": audio_name}), flush=True)  # [WEB SERVER] - Segnala fine audio
+        if wait:
+            subprocess.run(["afplay", file_path], check=True)
+            print(f"[OK] Audio {audio_name} completato")
+            print(json.dumps({"type": "STEP", "category": "AUDIO", "status": "DONE", "detail": audio_name}), flush=True)  # [WEB SERVER] - Segnala fine audio
+        else:
+            # Esegue in background (non blocca)
+            subprocess.Popen(["afplay", file_path])
+            print(f"[BG] Audio {audio_name} avviato in background")
     except subprocess.CalledProcessError as e:
         print(f"[ERRORE] Riproduzione audio {file_path}: {e}")
     except FileNotFoundError:
         print(f"[ERRORE] File audio non trovato: {file_path}")
+
+
+def phase2_audio_sequence():
+    """Gestisce la sequenza audio della fase 2 e successive in un thread separato."""
+    print("[THREAD] Avvio sequenza audio Fase 2...")
+    
+    # 1. Gap tra Audio 10 e Audio 11
+    time.sleep(13) 
+    play_audio(AUDIO_FILES["11"], "11", wait=False)
+    
+    # 2. Gap tra Audio 11 e Audio 12
+    time.sleep(14)
+    play_audio(AUDIO_FILES["12"], "12", wait=False)
+    
+    # 3. Gap tra Audio 12 e Audio 12.1
+    time.sleep(13)
+    play_audio(AUDIO_FILES["12.1"], "12.1")
+    
+    # 4. Audio finali (coda)
+    time.sleep(1)
+    play_audio(AUDIO_FILES["13"], "13")
+    
+    # [SYNC] Segnala al main thread che può stampare (contemporaneo a Audio 14)
+    print("[THREAD] Trigger stampa attivato (Start Audio 14)")
+    print_trigger.set()
+    
+    play_audio(AUDIO_FILES["14"], "14")
+    print("[THREAD] Sequenza audio terminata.")
 
 
 def clean_data_file():
@@ -160,14 +199,11 @@ def main():
     # ========================================
     
     # Audio 01
-    # Audio 01
     print(json.dumps({"type": "PHASE", "name": "PRE-MONITORAGGIO", "next": "PRIMA FASE"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     play_audio(AUDIO_FILES["01"], "01")
-    time.sleep(1)
     
     # Audio 02
     play_audio(AUDIO_FILES["02"], "02")
-    time.sleep(1)
     
     # ========================================
     # PRIMA FASE DI MONITORAGGIO
@@ -204,18 +240,12 @@ def main():
     play_audio(AUDIO_FILES["06.1"], "06.1")
     
     # Stop prima fase di monitoraggio
-    stop_arduino_monitoring("PRIMA FASE")
-    
-    # ========================================
-    # TRANSIZIONE
-    # ========================================
-    
+    stop_arduino_monitoring("PRIMA FASE")    
     time.sleep(1)
     
     print(json.dumps({"type": "PHASE", "name": "TRANSIZIONE", "next": "TRIGGER CHECK"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
     # Audio 07
     play_audio(AUDIO_FILES["07"], "07")
-    time.sleep(1)
     
     # Audio 08
     play_audio(AUDIO_FILES["08"], "08")
@@ -235,14 +265,14 @@ def main():
     # Audio 10 (in parallelo al monitoraggio già avviato)
     play_audio(AUDIO_FILES["10"], "10")
     
-    # DOPO la fine dell'audio 10, controlla il trigger per 5 secondi
+    # DOPO la fine dell'audio 10, controlla il trigger per n secondi
     # Il monitoraggio è già attivo (porta aperta) e sta scrivendo dati freschi
     # Abbiamo due opzioni:
-    # 1. Trigger CONTATTO rilevato entro 5s dalla fine audio 10 → parte subito
-    # 2. Nessun trigger entro 5s dalla fine audio 10 → parte automaticamente
+    # 1. Trigger CONTATTO rilevato entro n s dalla fine audio 10 → parte subito
+    # 2. Nessun trigger entro n s dalla fine audio 10 → parte automaticamente
     
-    # Controllo trigger (ritorna True appena lo rileva, altrimenti aspetta 5s)
-    trigger_rilevato = check_contatto_trigger(timeout=5.0)
+    # Controllo trigger (ritorna True appena lo rileva, altrimenti aspetta n s)
+    trigger_rilevato = check_contatto_trigger(timeout=2.0)
     
     # Stop monitoraggio temporaneo
     stop_arduino_monitoring("TRIGGER CHECK")
@@ -253,44 +283,30 @@ def main():
         print("[WARN] Nessun trigger rilevato, avvio seconda fase dopo timeout")
     
     # ========================================
-    # SECONDA FASE DI MONITORAGGIO (45 secondi)
+    # SECONDA FASE DI MONITORAGGIO (40 secondi)
     # ========================================
-    
     print("\n" + "="*60)
-    print("=== AVVIO SECONDA FASE MONITORAGGIO (45 secondi) ===")
+    print("=== AVVIO SECONDA FASE MONITORAGGIO (40 secondi) ===")
     print("="*60 + "\n")
     
     print(json.dumps({"type": "PHASE", "name": "SECONDA FASE", "next": "ELABORAZIONE"}), flush=True)  # [WEB SERVER] - Aggiorna la fase corrente
+    
+    # 1. Avvio Monitoraggio dati Arduino
     start_arduino_monitoring("SECONDA FASE")
     phase2_start_time = time.time()
     
-    # Audio sovrapposti durante la seconda fase:
-    # - 20s dopo inizio fase 2: audio 11
-    # - 20s dopo inizio audio 11 (= 40s da inizio fase 2): audio 12
-    # - 20s dopo inizio audio 12 (= 60s da inizio fase 2): audio 12.1
+    # 2. Avvio Audio "eyedeal" in BACKGROUND
+    play_audio(AUDIO_FILES["eyedeal"], "eyedeal", wait=False)
     
-    # Aspetta 20 secondi dall'inizio della seconda fase
-    time.sleep(20)
+    # 3. Avvio Thread Sequenza Audio (11, 12, 12.1...)
+    audio_thread = Thread(target=phase2_audio_sequence)
+    audio_thread.start()
     
-    # Audio 11 (a 20s dall'inizio fase 2)
-    play_audio(AUDIO_FILES["11"], "11")
+    # Monitoraggio dura 40 secondi
+    print("[WAIT] Attesa 40 secondi monitoraggio...")
+    time.sleep(40)
     
-    # Aspetta 20 secondi dall'inizio di audio 11
-    time.sleep(20)
-    
-    # Audio 12 (a 40s dall'inizio fase 2)
-    play_audio(AUDIO_FILES["12"], "12")
-    
-    # Calcola quanto tempo è passato dall'inizio della fase 2
-    elapsed = time.time() - phase2_start_time
-    remaining = 45.0 - elapsed
-    
-    # Se rimane tempo prima dei 45 secondi totali, aspetta
-    if remaining > 0:
-        print(f"[WAIT] Attesa completamento 45 secondi fase 2 (rimangono {remaining:.1f}s)...")
-        time.sleep(remaining)
-    
-    # Stop seconda fase di monitoraggio (dopo esattamente 45 secondi)
+    # Stop seconda fase di monitoraggio
     stop_arduino_monitoring("SECONDA FASE")
     
     print("\n" + "="*60)
@@ -309,6 +325,10 @@ def main():
         # ========================================
         # STAMPA CONTRATTO (con controllo carta)
         # ========================================
+
+        # [SYNC] Attendiamo il segnale dal thread audio (Inizio Audio 14)
+        print("\n[WAIT] Attesa sync Audio 14 per stampa...")
+        print_trigger.wait()
         
         # Il contratto è stato generato, ora controlliamo se c'è abbastanza carta
         # Cerchiamo il PDF più recente nella cartella contracts
@@ -413,23 +433,13 @@ def main():
         print(f"[ERRORE] Elaborazione dati: {e}")
     
     # ========================================
-    # AUDIO FINALI
+    # AUDIO FINALI (Gestiti dal thread)
     # ========================================
     
-    # 20 secondi dopo l'inizio di audio 12, riproduci audio 12.1
-    # (audio 12 è già partito prima, quindi ora aspettiamo e riproduciamo 12.1)
-    time.sleep(20)
-    
-    # Audio 12.1
-    play_audio(AUDIO_FILES["12.1"], "12.1")
-    time.sleep(1)
-    
-    # Audio 13
-    play_audio(AUDIO_FILES["13"], "13")
-    time.sleep(2)
-    
-    # Audio 14
-    play_audio(AUDIO_FILES["14"], "14")
+    # Attendiamo la fine del thread audio (che arriva fino all'audio 14)
+    if audio_thread.is_alive():
+        print("[INFO] Il contratto è pronto o in stampa, attendo fine audio 14...")
+        audio_thread.join()
     
     # ========================================
     # AGGIORNAMENTO ROTOLO CARTA TERMICA
