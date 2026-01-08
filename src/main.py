@@ -66,15 +66,11 @@ def phase2_audio_sequence():
     print("[THREAD] Avvio sequenza audio Fase 2...")
     
     # 1. Gap tra Audio 10 e Audio 11
-    time.sleep(13) 
+    time.sleep(20) 
     play_audio(AUDIO_FILES["11"], "11", wait=False)
     
-    # 2. Gap tra Audio 11 e Audio 12
-    time.sleep(14)
-    play_audio(AUDIO_FILES["12"], "12", wait=False)
-    
-    # 3. Gap tra Audio 12 e Audio 12.1
-    time.sleep(13)
+    # 2. Gap tra Audio 11 e Audio 12.1 (Audio 12 rimosso)
+    time.sleep(20)
     play_audio(AUDIO_FILES["12.1"], "12.1")
     
     # 4. Audio finali (coda)
