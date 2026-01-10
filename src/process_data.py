@@ -654,8 +654,8 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
             # [VECTOR] Generazione vettoriale solo se i dati sono reali
             vec_a, vec_b, max_v_vec = conductance_graph.get_conductance_data_points(source_list)
             assets["conductance_vector"] = {
-                "series_a": vec_b, 
-                "series_b": vec_a, 
+                "series_a": vec_a, 
+                "series_b": vec_b, 
                 "max_val": max_v_vec
             }
         except Exception as e:

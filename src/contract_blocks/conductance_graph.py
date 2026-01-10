@@ -100,11 +100,11 @@ def genera_grafico_conduttanza(storico_dati_input=None, output_path="temp_conduc
     ax.set_xlim(0, len(tempo))
 
     # 7. PLOTTING
-    # Contraente A: Invertito -> Tratteggiato su richiesta
-    plt.plot(tempo, vals_a_smooth, color='black', linewidth=3.5, linestyle='--', dashes=(7, 7), solid_capstyle='round')
+    # Contraente A: Solido
+    plt.plot(tempo, vals_a_smooth, color='black', linewidth=3.5, solid_capstyle='round')
     
-    # Contraente B: Invertito -> Solido su richiesta
-    plt.plot(tempo, vals_b_smooth, color='black', linewidth=3.5, solid_capstyle='round')
+    # Contraente B: Tratteggiato
+    plt.plot(tempo, vals_b_smooth, color='black', linewidth=3.5, linestyle='--', dashes=(7, 7), solid_capstyle='round')
 
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
