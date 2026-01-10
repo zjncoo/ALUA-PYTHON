@@ -395,19 +395,29 @@ def processa_dati(data_list):
              
         log.debug(f"Static Sample scelto tramite Global Best Search")
 
-        # FALLBACK BOTTONI: Se una lista è vuota (es. errore sensore), assegna "CIRCOSTANZIALE" d'ufficio
-        # Questo permette di calcolare lo score (senza dare 0%) e stampare qualcosa sul contratto.
-        if not static_sample.get("RELAZIONI_P0"):
+        # [FALLBACK BOTTONI INTELLIGENTE]
+        # Se una pulsantiera è rotta (lista vuota), assumiamo che la persona volesse
+        # selezionare le stesse cose del partner (per non penalizzare lo score).
+        btns0 = static_sample.get("RELAZIONI_P0", [])
+        btns1 = static_sample.get("RELAZIONI_P1", [])
+        
+        if btns0 and not btns1:
+            # P0 ha scelto, P1 vuoto -> Copia P0 su P1
+            static_sample["RELAZIONI_P1"] = list(btns0)
+            log.warning(f"[FALLBACK BUTTONS] P1 Vuoto/Rotto -> Copiato da P0: {btns0}")
+            
+        elif btns1 and not btns0:
+            # P1 ha scelto, P0 vuoto -> Copia P1 su P0
+            static_sample["RELAZIONI_P0"] = list(btns1)
+            log.warning(f"[FALLBACK BUTTONS] P0 Vuoto/Rotto -> Copiato da P1: {btns1}")
+            
+        elif not btns0 and not btns1:
+            # Entrambi vuoti -> Assegna "CIRCOSTANZIALE" d'ufficio per evitare crash o score nullo
             static_sample["RELAZIONI_P0"] = ["CIRCOSTANZIALE"]
-            log.warning("[FALLBACK] P0 Buttons Empty -> Forcing 'CIRCOSTANZIALE'")
-
-        if not static_sample.get("RELAZIONI_P1"):
             static_sample["RELAZIONI_P1"] = ["CIRCOSTANZIALE"]
-            log.warning("[FALLBACK] P1 Buttons Empty -> Forcing 'CIRCOSTANZIALE'")
+            log.warning("[FALLBACK BUTTONS] Entrambi Vuoti -> Forcing 'CIRCOSTANZIALE'")
 
         # Tutti i campioni da split_index in poi sono la Fase 2,
-        # su cui analizzeremo il trend di SCL (arousal).
-        phase2_list = data_list[split_index:]
         # su cui analizzeremo il trend di SCL (arousal).
         phase2_list = data_list[split_index:]
 
