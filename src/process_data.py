@@ -6,7 +6,7 @@ import sys
 import string
 from datetime import datetime
 import urllib.parse
-
+import numpy as np
 
 from monitor_arduino import RELAZIONI
 import contract_blocks.lissajous as lissajous
@@ -50,12 +50,6 @@ THRESHOLD_REL_SCL      = 0.05  # 5% #da valutare
 
 # RISCHIO: MAPPING PREZZI E LABELS
 # 1 = MINIMO, 2 = MODERATO, 3 = SIGNIFICATIVO, 4 = CATASTROFICO
-#
-# [MODIFIED - NEW FEATURE: FRASI DI RISCHIO]
-# Oltre a label e prezzo, abbiamo aggiunto il campo "phrase".
-# Questo testo viene utilizzato per stampare una descrizione narrativa del rischio
-# sul PDF del contratto. (Vedi: contract_generator.py -> RiskPhrase)
-# Le frasi descrivono lo stato della relazione in base alla fascia calcolata.
 RISK_INFO = {
     1: {"label": "MINIMO", "price": "250,00€", "phrase": "Sincronia sospettosamente perfetta. Siete un'anomalia statistica. Proteggiamo questo asset raro prima che lo roviniate."},
     2: {"label": "MODERATO", "price": "500,00€", "phrase": "Tutto tranquillo. Forse troppo. Assicurate la vostra serenità contro il rischio di caos improvviso."},
@@ -67,9 +61,6 @@ SLIDER_SCALE   = 100.0 / SLIDER_MAX_RAW
 
 # UTILITY
 # clamp() limita un valore all'interno dell'intervallo [min_value, max_value].
-# Se value è più basso del minimo → ritorna min_value.
-# Se value è più alto del massimo → ritorna max_value.
-# Altrimenti ritorna value così com'è.
 def clamp(value, min_value, max_value):
     return max(min_value, min(max_value, value))
 
@@ -103,16 +94,36 @@ def calcola_score_slider(sample):
     if not sample:
         return 0.0
 
-    slider0 = sample.get("SLIDER0", 0)
-    slider1 = sample.get("SLIDER1", 0)
+    raw0 = sample.get("SLIDER0", 0)
+    raw1 = sample.get("SLIDER1", 0)
 
-    v0 = slider0 * SLIDER_SCALE
-    v1 = slider1 * SLIDER_SCALE
+    # [FALLBACK SLIDER] Rilevamento Guasto Hardware
+    # Se il valore è esattamente 0 o 1023, è molto probabile che il cavo sia scollegato o in corto.
+    # In questo caso, per non penalizzare la coppia con un errore tecnico,
+    # ignoriamo il sensore rotto e "ci fidiamo" dell'altro (copiando il valore).
+    is_broken0 = (raw0 == 0 or raw0 == 1023)
+    is_broken1 = (raw1 == 0 or raw1 == 1023)
+    
+    if is_broken0 or is_broken1:
+        log.warning(f"[SLIDER FALLBACK] Rilevato sensore rotto/estremo: S0={raw0}, S1={raw1}")
+        
+        if is_broken0 and is_broken1:
+            # Entrambi rotti -> Fiducia totale al software (100% compatibilità d'ufficio)
+            return 1.0
+        elif is_broken0:
+            # P0 rotto -> Usiamo P1 come riferimento
+            raw0 = raw1
+        elif is_broken1:
+            # P1 rotto -> Usiamo P0 come riferimento
+            raw1 = raw0
+            
+    v0 = raw0 * SLIDER_SCALE
+    v1 = raw1 * SLIDER_SCALE
 
     diff = abs(v0 - v1)              # 0..100
     discrepanza = max(0.0, diff - 2) # tolleranza 2%
 
-    log.debug(f"[SCORE_SLIDER] Raw: S0={slider0}, S1={slider1}")
+    log.debug(f"[SCORE_SLIDER] Raw: S0={raw0}, S1={raw1}")
     log.debug(f"[SCORE_SLIDER] Norm: V0={v0:.2f}%, V1={v1:.2f}%, Diff={diff:.2f}% (tol. 5%)")
 
     score = 1.0 - (discrepanza / 100.0)
@@ -456,9 +467,6 @@ def processa_dati(data_list):
 # 9. INTEGRATION: MAPPING & ASSET GENERATION
 # ================================================================
 
-
-
-
 # HELPER: Trova il miglior sample per le relazioni (indipendente dalle fasi)
 def find_best_relationship_sample(data_list):
     """
@@ -485,6 +493,7 @@ def generate_unique_id():
 def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     """
     Genera gli asset grafici (Lissajous, QR, ecc.) usando la logica di CONTRACT.
+    INCLUDE SMART FALLBACK LOGIC per SCL Assets.
     """
     log.info(">>> INIZIO GENERAZIONE ASSETS <<<")
     
@@ -543,20 +552,106 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     for d in source_list:
         storico_tuple.append((d.get("SCL0", 0), d.get("SCL1", 0)))
         
-    # LOGICA ASSET
+    # ==========================================================
+    # LOGICA ASSET [MODIFICATO CON FALLBACK INTELLIGENTE]
+    # ==========================================================
     
-    # A. Lissajous
-    path_liss = os.path.join(output_dir, "temp_liss.png")
-    try:
-        # Recuperiamo la compatibilità calcolata per governare la "Fase" (Forma)
-        val_compat_final = result_pacchetto.get("elaborati", {}).get("compatibilita", 50)
+    # 1. Analisi "Salute" Sensori SCL
+    # Recuperiamo i massimi valori per capire se il sensore era collegato
+    max_scl0 = 0
+    max_scl1 = 0
+    if storico_tuple:
+        scl0_vals = [s[0] for s in storico_tuple]
+        scl1_vals = [s[1] for s in storico_tuple]
+        max_scl0 = max(scl0_vals) if scl0_vals else 0
+        max_scl1 = max(scl1_vals) if scl1_vals else 0
         
-        final_path_liss = lissajous.generate_lissajous(storico_tuple, val_compat_final, path_liss)
-        assets["lissajous"] = final_path_liss
-    except Exception as e:
-        log.error(f"Errore Lissajous: {e}")
+    # Soglia minima per considerare un sensore "attivo"
+    SENSOR_THRESHOLD = 50.0 
+    
+    p0_alive = max_scl0 > SENSOR_THRESHOLD
+    p1_alive = max_scl1 > SENSOR_THRESHOLD
+    
+    # Se anche solo uno è morto, scatta il fallback (per simmetria estetica)
+    use_fallback = not (p0_alive and p1_alive)
+    
+    if use_fallback:
+        log.warning(f"[FALLBACK LOGIC] Sensori Parzialmente Morti: P0={p0_alive} (Max={max_scl0}), P1={p1_alive} (Max={max_scl1})")
+        
+        # Helper per determinare lo stato (Calmo/NO vs Agitato/YES) da usare nel nome file
+        def get_state_label(vals, is_alive):
+            if not is_alive or not vals: 
+                return "NO" # Morto = Piatto = Calmo
+            # Se è vivo, controlliamo se è stressato (StdDev alta)
+            return "YES" if np.std(vals) > 5.0 else "NO"
+            
+        state_p0 = get_state_label([s[0] for s in storico_tuple], p0_alive)
+        state_p1 = get_state_label([s[1] for s in storico_tuple], p1_alive)
+        
+        scenario_key = f"{state_p0}-{state_p1}"
+        fallback_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../assets/fallback")
+        
+        # A. Lissajous Fallback
+        fallback_liss = os.path.join(fallback_dir, f"fallback_lissajous_{scenario_key}.png")
+        if os.path.exists(fallback_liss):
+            assets["lissajous"] = fallback_liss
+            log.info(f"  -> [ASSET] Usato Lissajous FALLBACK: {scenario_key}")
+        else:
+            log.error(f"  -> [ASSET] Manca Lissajous Fallback: {fallback_liss}")
+            # Tentativo backup generazione
+            path_liss = os.path.join(output_dir, "temp_liss.png")
+            try:
+                val_compat_final = result_pacchetto.get("elaborati", {}).get("compatibilita", 50)
+                assets["lissajous"] = lissajous.generate_lissajous(storico_tuple, val_compat_final, path_liss)
+            except: pass
 
-    # B. Visual Pezzi
+        # C. Grafico Fallback
+        fallback_graph = os.path.join(fallback_dir, f"fallback_graph_{scenario_key}.png")
+        if os.path.exists(fallback_graph):
+            assets["graph"] = fallback_graph
+            assets["max_conductance"] = 100.0 # Valore dummy
+            assets["conductance_vector"] = None # Disabilita vettoriale nel PDF per usare PNG
+            log.info(f"  -> [ASSET] Usato Graph FALLBACK: {scenario_key}")
+        else:
+            log.error(f"  -> [ASSET] Manca Graph Fallback: {fallback_graph}")
+            # Tentativo backup generazione
+            path_graph = os.path.join(output_dir, "temp_graph.png")
+            try:
+                 _, mx = conductance_graph.genera_grafico_conduttanza(storico_tuple, path_graph)
+                 assets["graph"] = path_graph
+                 assets["max_conductance"] = mx
+            except: pass
+            
+    else:
+        # [NORMAL FLOW] Sensori OK -> Generazione Reale
+        
+        # A. Lissajous
+        path_liss = os.path.join(output_dir, "temp_liss.png")
+        try:
+            val_compat_final = result_pacchetto.get("elaborati", {}).get("compatibilita", 50)
+            final_path_liss = lissajous.generate_lissajous(storico_tuple, val_compat_final, path_liss)
+            assets["lissajous"] = final_path_liss
+        except Exception as e:
+            log.error(f"Errore Lissajous: {e}")
+
+        # C. Grafico Conduttanza
+        path_graph = os.path.join(output_dir, "temp_graph.png")
+        try:
+            _, max_val_graph = conductance_graph.genera_grafico_conduttanza(storico_tuple, path_graph)
+            assets["graph"] = path_graph
+            assets["max_conductance"] = max_val_graph
+            
+            # [VECTOR] Generazione vettoriale solo se i dati sono reali
+            vec_a, vec_b, max_v_vec = conductance_graph.get_conductance_data_points(source_list)
+            assets["conductance_vector"] = {
+                "series_a": vec_b, 
+                "series_b": vec_a, 
+                "max_val": max_v_vec
+            }
+        except Exception as e:
+            log.error(f"Errore Grafico: {e}")
+
+    # B. Visual Pezzi (Bottoni/Slider)
     # IMPORTANTE: relationship_viz si aspetta valori in percentuale (0-100),
     # quindi convertiamo i valori raw (0-1023) prima di passarli
     slider0_pct = int(slider0 * SLIDER_SCALE)
@@ -580,32 +675,7 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     except Exception as e:
         log.error(f"Errore P1: {e}")
         
-    # C. Grafico Conduttanza
-    path_graph = os.path.join(output_dir, "temp_graph.png")
-    try:
-        # Ora la funzione ritorna (path, max_val)
-        _, max_val_graph = conductance_graph.genera_grafico_conduttanza(storico_tuple, path_graph)
-        assets["graph"] = path_graph
-        assets["max_conductance"] = max_val_graph
-        
-        # [VECTOR] Get raw data
-        # Note: get_conductance_data_points reads directly from JSONL file in its implementation
-        
-        # [MODIFIED] Pass the specific dataset (Phase 2) to the vector generator
-        # instead of letting it read the file again.
-        vec_a, vec_b, max_v_vec = conductance_graph.get_conductance_data_points(source_list)
-        
-        # [FIX] User reported A/B are inverted. Swapping them here.
-        # Now: Series A (Solid) = vec_b (SCL1)
-        #      Series B (Dashed) = vec_a (SCL0)
-        assets["conductance_vector"] = {
-            "series_a": vec_b, 
-            "series_b": vec_a,
-            "max_val": max_v_vec
-        }
-    except Exception as e:
-        log.error(f"Errore Graph: {e}")
-
+ 
     # D. QR Code
     # Costruiamo URL con solo i dati necessari
     
@@ -629,7 +699,7 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     risk_data = RISK_INFO.get(elab.get('fascia', 1), {})
     
     # Lista esplicita dei tipi di relazione (es. "AMICALE,LAVORATIVA")
-    types_str = ",".join(sorted(raw_types)) if 'raw_types' in locals() else ",".join(sorted(list(set(p0_labels + p1_labels))))
+    types_str = ",".join(sorted(list(set(p0_labels + p1_labels))))
 
     # Ricalcolo scores per params (simulato, o recuperato)
     arousal_data = elab.get("arousal", {})
@@ -681,6 +751,8 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         'types': types_str, # Sostituisce btn0/btn1 con i nomi veri
         'scl0': int(last_scl0),  # [INTERNO] Disponibile per PDF ma non nel QR
         'scl1': int(last_scl1),  # [INTERNO] Disponibile per PDF ma non nel QR
+        'avg0': f"{avg_scl0:.2f}",
+        'avg1': f"{avg_scl1:.2f}",
         'avg0': f"{avg_scl0:.2f}",
         'avg1': f"{avg_scl1:.2f}",
         'bad': id_colp

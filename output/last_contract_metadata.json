@@ -1,9 +1,9 @@
 {
-  "fascia": 1,
+  "fascia": 3,
   "tipi_selezionati": [
     "AMICALE"
   ],
-  "compatibilita": 90,
-  "contract_id": "3P8NA7SNZ",
-  "pdf_path": "/Volumes/Install macOS Sequoia/ALUA-PYTHON/src/../output/contracts/Contract_3P8NA7SNZ.pdf"
+  "compatibilita": 39,
+  "contract_id": "GZUVK9T7V",
+  "pdf_path": "/Volumes/Install macOS Sequoia/ALUA-PYTHON/src/../output/contracts/Contract_GZUVK9T7V.pdf"
 }
