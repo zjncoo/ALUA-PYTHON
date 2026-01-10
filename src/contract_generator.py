@@ -21,7 +21,11 @@ Questo file si occupa SOLO dell'assemblaggio grafico:
 PSD_WIDTH  = 2482  
 PSD_HEIGHT = 3237
 PDF_W_MM = 210.0
-PDF_H_MM = PSD_HEIGHT * (PDF_W_MM / PSD_WIDTH)
+# [FIX] PRINTER FEED ISSUE
+# Distinguere tra altezza contenuto grafico (template) e altezza pagina fisica (A4)
+# Il driver della stampante potrebbe confondersi con formati custom, causando sovrapposizioni.
+CONTENT_H_MM = PSD_HEIGHT * (PDF_W_MM / PSD_WIDTH) # ~273.88mm (Original Layout Height)
+PDF_H_MM = 297.0 # Standard A4 Height (Fixes feed/cut issues)
 
 def px(pixel_value):
     """
@@ -390,8 +394,9 @@ def genera_pdf_contratto_A4(dati):
     
     # 2. CARICAMENTO TEMPLATE BACKGROUND (Solo su pag 1)
     if template_path and os.path.exists(template_path):
-        # Adattiamo l'immagine alla dimensione esatta della pagina calcolata
-        pdf.image(template_path, x=0, y=0, w=PDF_W_MM, h=PDF_H_MM)
+        # Adattiamo l'immagine alla dimensione del CONTENUTO grafico (non della pagina A4 intera)
+        # Questo lascia spazio bianco in fondo alla pagina, garantendo il feed corretto.
+        pdf.image(template_path, x=0, y=0, w=PDF_W_MM, h=CONTENT_H_MM)
 
     # 3. SET WINDOW/VIEWPORT (Solo per pag 1 grafica)
     # ... logic for graphical elements placement remains ...
