@@ -401,17 +401,7 @@ def processa_dati(data_list):
         btns0 = static_sample.get("RELAZIONI_P0", [])
         btns1 = static_sample.get("RELAZIONI_P1", [])
         
-        if btns0 and not btns1:
-            # P0 ha scelto, P1 vuoto -> Copia P0 su P1
-            static_sample["RELAZIONI_P1"] = list(btns0)
-            log.warning(f"[FALLBACK BUTTONS] P1 Vuoto/Rotto -> Copiato da P0: {btns0}")
-            
-        elif btns1 and not btns0:
-            # P1 ha scelto, P0 vuoto -> Copia P1 su P0
-            static_sample["RELAZIONI_P0"] = list(btns1)
-            log.warning(f"[FALLBACK BUTTONS] P0 Vuoto/Rotto -> Copiato da P1: {btns1}")
-            
-        elif not btns0 and not btns1:
+        if not btns0 and not btns1:
             # Entrambi vuoti -> Assegna "CIRCOSTANZIALE" d'ufficio per evitare crash o score nullo
             static_sample["RELAZIONI_P0"] = ["CIRCOSTANZIALE"]
             static_sample["RELAZIONI_P1"] = ["CIRCOSTANZIALE"]
@@ -567,26 +557,46 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     # ==========================================================
     
     # 1. Analisi "Salute" Sensori SCL
-    # Recuperiamo i massimi valori per capire se il sensore era collegato
-    max_scl0 = 0
-    max_scl1 = 0
+    # [NEW LOGIC] Il sensore è "morto" se sta sotto soglia 10 per più del 20% del tempo
+    SENSOR_THRESHOLD = 10.0
+    TOLERANCE_PCT = 0.20 # 20%
+    
+    p0_alive = True
+    p1_alive = True
+    
+    total_samples = 0
+    bad_0 = 0
+    bad_1 = 0
+    
     if storico_tuple:
-        scl0_vals = [s[0] for s in storico_tuple]
-        scl1_vals = [s[1] for s in storico_tuple]
-        max_scl0 = max(scl0_vals) if scl0_vals else 0
-        max_scl1 = max(scl1_vals) if scl1_vals else 0
-        
-    # Soglia minima per considerare un sensore "attivo"
-    SENSOR_THRESHOLD = 50.0 
-    
-    p0_alive = max_scl0 > SENSOR_THRESHOLD
-    p1_alive = max_scl1 > SENSOR_THRESHOLD
-    
+        total_samples = len(storico_tuple)
+        if total_samples > 0:
+            scl0_vals = [s[0] for s in storico_tuple]
+            scl1_vals = [s[1] for s in storico_tuple]
+            
+            # Conta campioni sotto soglia
+            bad_0 = sum(1 for v in scl0_vals if v < SENSOR_THRESHOLD)
+            bad_1 = sum(1 for v in scl1_vals if v < SENSOR_THRESHOLD)
+            
+            # Se la percentuale di campioni "bad" supera il 20%, è morto
+            if (bad_0 / total_samples) > TOLERANCE_PCT: p0_alive = False
+            if (bad_1 / total_samples) > TOLERANCE_PCT: p1_alive = False
+    else:
+        p0_alive = False
+        p1_alive = False
+
+    # Log per debug soglie
+    if total_samples > 0:
+        log.debug(f"[SENSORS] P0 Bad Samples: {bad_0}/{total_samples} ({(bad_0/total_samples)*100:.1f}%) -> Alive: {p0_alive}")
+        log.debug(f"[SENSORS] P1 Bad Samples: {bad_1}/{total_samples} ({(bad_1/total_samples)*100:.1f}%) -> Alive: {p1_alive}")
+
     # Se anche solo uno è morto, scatta il fallback (per simmetria estetica)
     use_fallback = not (p0_alive and p1_alive)
     
     if use_fallback:
-        log.warning(f"[FALLBACK LOGIC] Sensori Parzialmente Morti: P0={p0_alive} (Max={max_scl0}), P1={p1_alive} (Max={max_scl1})")
+        pct0 = (bad_0/total_samples)*100 if total_samples > 0 else 0
+        pct1 = (bad_1/total_samples)*100 if total_samples > 0 else 0
+        log.warning(f"[FALLBACK LOGIC] Sensori Parzialmente Morti: P0={p0_alive} (Bad={pct0:.1f}%), P1={p1_alive} (Bad={pct1:.1f}%)")
         
         # Helper per determinare lo stato (Calmo/NO vs Agitato/YES) da usare nel nome file
         def get_state_label(vals, is_alive):
