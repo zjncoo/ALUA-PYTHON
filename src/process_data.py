@@ -13,7 +13,9 @@ import contract_blocks.lissajous as lissajous
 import contract_blocks.qrcode_generator as qrcode_generator
 import contract_blocks.relationship_viz as relationship_viz
 import contract_blocks.conductance_graph as conductance_graph
+import contract_blocks.conductance_graph as conductance_graph
 import contract_generator
+from generate_fallback_assets import generate_synthetic_data
 
 # LOGGING
 # Commentato per ridurre l'output verboso [DEBUG] e [INFO]
@@ -186,14 +188,14 @@ def valuta_trend_scl(session_data):
         m2 = second_sum[i] / second_count[i] if second_count[i] else 0
 
         if m1 == 0 or m2 == 0:
-            fake = random.randint(0, 1)
-            log.debug(f"[SCL] persona{i}: dati insufficienti (m1={m1}, m2={m2}) → fake={fake}")
+            fake = 0
+            log.debug(f"[SCL] persona{i}: dati insufficienti (m1={m1}, m2={m2}) → forced CALM (fake=0)")
             result[f"persona{i}"] = {
                 "mean_first": m1,
                 "mean_second": m2,
                 "delta": 0,
                 "rel_diff": 0,
-                "arousal": bool(fake),
+                "arousal": False,
                 "fake": fake,
             }
             continue
@@ -417,18 +419,57 @@ def processa_dati(data_list):
         log.debug(f" -> Arousal (SCL) su {len(phase2_list)} campioni (Fase 2)")
 
     # 5) CALCOLO DELL'AROUSAL (solo su Fase 2)
-    # Qui passiamo la lista di campioni della sola Fase 2 alla funzione
-    # che valuta il trend nel tempo dei valori SCL.
-    # Risultato: un dizionario con info tipo:
-    #   {
-    #     "persona0": { mean_first, mean_second, delta, rel_diff, arousal, ... },
-    #     "persona1": { ... }
-    #   }
-    arousal = valuta_trend_scl(phase2_list)
+    
+    # [NEW] SENSOR HEALTH CHECK & RANDOMIZED FALLBACK
+    # Verifica se i sensori sono "morti" (>20% di dati sotto soglia 10.0)
+    SENSOR_THRESHOLD = 10.0
+    TOLERANCE_PCT = 0.20
+    
+    scl0_vals = [d.get("SCL0", 0) for d in phase2_list]
+    scl1_vals = [d.get("SCL1", 0) for d in phase2_list]
+    total_samples = len(phase2_list)
+    
+    p0_alive = True
+    p1_alive = True
+    
+    if total_samples > 0:
+        bad_0 = sum(1 for v in scl0_vals if v < SENSOR_THRESHOLD)
+        bad_1 = sum(1 for v in scl1_vals if v < SENSOR_THRESHOLD)
+        if (bad_0 / total_samples) > TOLERANCE_PCT: p0_alive = False
+        if (bad_1 / total_samples) > TOLERANCE_PCT: p1_alive = False
+    else:
+        p0_alive = False
+        p1_alive = False
+        
+    use_fallback = not (p0_alive and p1_alive)
+    fallback_scenario = None
+    
+    if use_fallback:
+        # RANDOMIZED FALLBACK MODE / "IL FATO"
+        # Se i sensori falliscono, il sistema sceglie casualmente uno scenario
+        # NO = Calma, YES = Arousal
+        scenarios = ["NO-NO", "YES-YES", "NO-YES", "YES-NO"]
+        fallback_scenario = random.choice(scenarios)
+        
+        log.warning(f"⚠️  SENSORS FAIL (P0={p0_alive}, P1={p1_alive}) -> ATTIVAZIONE FALLBACK RANDOM: {fallback_scenario}")
+        
+        # Parse dello scenario per costruire l'arousal dict fittizio
+        # "NO-YES" -> P0=False, P1=True
+        s0_str, s1_str = fallback_scenario.split("-")
+        a0_bool = (s0_str == "YES")
+        a1_bool = (s1_str == "YES")
+        
+        # Costruiamo un arousal dict che forzi questo stato
+        # I valori mean/delta sono fittizi ma coerenti col booleano
+        arousal = {
+            "persona0": { "arousal": a0_bool, "delta": 100 if a0_bool else 0, "rel_diff": 0.5 if a0_bool else 0 },
+            "persona1": { "arousal": a1_bool, "delta": 100 if a1_bool else 0, "rel_diff": 0.5 if a1_bool else 0 }
+        }
+    else:
+        # NORMALE ANALISI DATI
+        arousal = valuta_trend_scl(phase2_list)
 
     # 6) SCORE SCL (valore 0–1 ricavato dall'arousal)
-    # Trasformiamo quelle info di arousal in un punteggio di compatibilità
-    # basato SOLO sui pattern SCL.
     score_scl = calcola_score_scl_da_arousal(arousal)
 
     # 7) COMPATIBILITÀ TOTALE (0–100%)
@@ -459,7 +500,8 @@ def processa_dati(data_list):
             "arousal": arousal
         },
         "static_sample": static_sample,  # IMPORTANTE: aggiungiamo il sample usato per bottoni/slider
-        "phase2_list": phase2_list # [NEW] Export Phase 2 data for graph generation
+        "phase2_list": phase2_list, # [NEW] Export Phase 2 data for graph generation
+        "fallback_scenario": fallback_scenario # [NEW] Se diverso da None, indica che siamo in modalità Random Fate
     }
     return pacchetto
 
@@ -553,94 +595,85 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         storico_tuple.append((d.get("SCL0", 0), d.get("SCL1", 0)))
         
     # ==========================================================
-    # LOGICA ASSET [MODIFICATO CON FALLBACK INTELLIGENTE]
+    # LOGICA ASSET [AGGIORNATO CON RANDOMIZED SCENARIO]
     # ==========================================================
     
-    # 1. Analisi "Salute" Sensori SCL
-    # [NEW LOGIC] Il sensore è "morto" se sta sotto soglia 10 per più del 20% del tempo
-    SENSOR_THRESHOLD = 10.0
-    TOLERANCE_PCT = 0.20 # 20%
+    # Recuperiamo se è stato attivato il fallback in fase di analisi
+    fallback_scenario = result_pacchetto.get("fallback_scenario")
     
-    p0_alive = True
-    p1_alive = True
+    use_fallback = (fallback_scenario is not None)
     
-    total_samples = 0
-    bad_0 = 0
-    bad_1 = 0
-    
-    if storico_tuple:
-        total_samples = len(storico_tuple)
-        if total_samples > 0:
-            scl0_vals = [s[0] for s in storico_tuple]
-            scl1_vals = [s[1] for s in storico_tuple]
-            
-            # Conta campioni sotto soglia
-            bad_0 = sum(1 for v in scl0_vals if v < SENSOR_THRESHOLD)
-            bad_1 = sum(1 for v in scl1_vals if v < SENSOR_THRESHOLD)
-            
-            # Se la percentuale di campioni "bad" supera il 20%, è morto
-            if (bad_0 / total_samples) > TOLERANCE_PCT: p0_alive = False
-            if (bad_1 / total_samples) > TOLERANCE_PCT: p1_alive = False
-    else:
-        p0_alive = False
-        p1_alive = False
-
-    # Log per debug soglie
-    if total_samples > 0:
-        log.debug(f"[SENSORS] P0 Bad Samples: {bad_0}/{total_samples} ({(bad_0/total_samples)*100:.1f}%) -> Alive: {p0_alive}")
-        log.debug(f"[SENSORS] P1 Bad Samples: {bad_1}/{total_samples} ({(bad_1/total_samples)*100:.1f}%) -> Alive: {p1_alive}")
-
-    # Se anche solo uno è morto, scatta il fallback (per simmetria estetica)
-    use_fallback = not (p0_alive and p1_alive)
-    
+    # Se siamo in fallback, dobbiamo sovrascrivere i dati "reali" (sporchi/vuoti)
+    # con dati SINTETICI coerenti con lo scenario scelto, affinché il QR code
+    # e le medie calcolate successivamente rispecchino la "finta realtà" del grafico.
     if use_fallback:
-        pct0 = (bad_0/total_samples)*100 if total_samples > 0 else 0
-        pct1 = (bad_1/total_samples)*100 if total_samples > 0 else 0
-        log.warning(f"[FALLBACK LOGIC] Sensori Parzialmente Morti: P0={p0_alive} (Bad={pct0:.1f}%), P1={p1_alive} (Bad={pct1:.1f}%)")
+        log.warning(f"[ASSET] Modalità FALLBACK attiva. Scenario: {fallback_scenario}")
         
-        # Helper per determinare lo stato (Calmo/NO vs Agitato/YES) da usare nel nome file
-        def get_state_label(vals, is_alive):
-            if not is_alive or not vals: 
-                return "NO" # Morto = Piatto = Calmo
-            # Se è vivo, controlliamo se è stressato (StdDev alta)
-            return "YES" if np.std(vals) > 5.0 else "NO"
+        # 1. GENERAZIONE DATI SINTETICI
+        # Usiamo la stessa funzione che ha generato i grafici di fallback per avere dati numerici coerenti
+        fake_data_points = generate_synthetic_data(fallback_scenario, duration_sec=40, sample_rate=10) # 40s come Phase 2
+        
+        # Convertiamo in formato compatibile con source_list (list of dicts)
+        # generate_synthetic_data ritorna [(scl1, scl0), ...] -> NOTA L'ORDINE INVERTITO NELLA FUNZIONE ORIGINALE!
+        # Controlliamo la funzione originale in generate_fallback_assets:
+        # "for i in range(num_samples): data.append((scl1_jittered[i], scl0[i]))"
+        # Quindi index 0 è SCL1, index 1 è SCL0.
+        
+        fake_source_list = []
+        for d in fake_data_points:
+            fake_source_list.append({
+                "SCL0": d[1], # Recupro corretto
+                "SCL1": d[0],
+                "TIMESTAMP": 0 # Dummy
+            })
             
-        state_p0 = get_state_label([s[0] for s in storico_tuple], p0_alive)
-        state_p1 = get_state_label([s[1] for s in storico_tuple], p1_alive)
+        # SOVRASCRIVIAMO LA LISTA SORGENTE PER I CALCOLI SUCCESSIVI (QR, Medie)
+        source_list = fake_source_list
+        # Ricalcoliamo storico_tuple per coerenza (usato per lissajous/graph se non usassimo i png statici)
+        storico_tuple = fake_data_points 
         
-        scenario_key = f"{state_p0}-{state_p1}"
+        # [NEW] SALVATAGGIO DATI FINTI SU FILE (Richiesta Utente)
+        # Salviamo i dati che hanno generato le medie del QR in un file fisico
+        try:
+            fallback_jsonl_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../data/last_processed_fallback.jsonl")
+            with open(fallback_jsonl_path, 'w') as f_jsonl:
+                for item in source_list:
+                    f_jsonl.write(json.dumps(item) + "\n")
+            log.info(f"  -> [DATA] Salvato JSONL fallback: {fallback_jsonl_path}")
+        except Exception as e:
+            log.error(f"  -> [DATA] Errore salvataggio JSONL fallback: {e}")
+
+        # 2. CARICAMENTO ASSET STATICI
         fallback_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../assets/fallback")
         
         # A. Lissajous Fallback
-        fallback_liss = os.path.join(fallback_dir, f"fallback_lissajous_{scenario_key}.png")
+        fallback_liss = os.path.join(fallback_dir, f"fallback_lissajous_{fallback_scenario}.png")
         if os.path.exists(fallback_liss):
             assets["lissajous"] = fallback_liss
-            log.info(f"  -> [ASSET] Usato Lissajous FALLBACK: {scenario_key}")
+            log.info(f"  -> [ASSET] Usato Lissajous FALLBACK: {fallback_scenario}")
         else:
-            log.error(f"  -> [ASSET] Manca Lissajous Fallback: {fallback_liss}")
-            # Tentativo backup generazione
-            path_liss = os.path.join(output_dir, "temp_liss.png")
-            try:
-                val_compat_final = result_pacchetto.get("elaborati", {}).get("compatibilita", 50)
-                assets["lissajous"] = lissajous.generate_lissajous(storico_tuple, val_compat_final, path_liss)
-            except: pass
+             # Fallback del fallback: rigenera se manca immagine (ma con dati fake puliti)
+             path_liss = os.path.join(output_dir, "temp_liss.png")
+             try:
+                val_compat = result_pacchetto.get("elaborati", {}).get("compatibilita", 50)
+                assets["lissajous"] = lissajous.generate_lissajous(storico_tuple, val_compat, path_liss)
+             except: pass
 
         # C. Grafico Fallback
-        fallback_graph = os.path.join(fallback_dir, f"fallback_graph_{scenario_key}.png")
+        fallback_graph = os.path.join(fallback_dir, f"fallback_graph_{fallback_scenario}.png")
         if os.path.exists(fallback_graph):
             assets["graph"] = fallback_graph
-            assets["max_conductance"] = 100.0 # Valore dummy
-            assets["conductance_vector"] = None # Disabilita vettoriale nel PDF per usare PNG
-            log.info(f"  -> [ASSET] Usato Graph FALLBACK: {scenario_key}")
+            assets["max_conductance"] = 100.0 # Valore dummy fisso per coerenza
+            assets["conductance_vector"] = None # No vector in fallback
+            log.info(f"  -> [ASSET] Usato Graph FALLBACK: {fallback_scenario}")
         else:
-            log.error(f"  -> [ASSET] Manca Graph Fallback: {fallback_graph}")
-            # Tentativo backup generazione
-            path_graph = os.path.join(output_dir, "temp_graph.png")
-            try:
+             # Fallback del fallback
+             path_graph = os.path.join(output_dir, "temp_graph.png")
+             try:
                  _, mx = conductance_graph.genera_grafico_conduttanza(storico_tuple, path_graph)
                  assets["graph"] = path_graph
                  assets["max_conductance"] = mx
-            except: pass
+             except: pass
             
     else:
         # [NORMAL FLOW] Sensori OK -> Generazione Reale
@@ -773,10 +806,9 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
         'scl1': int(last_scl1),  # [INTERNO] Disponibile per PDF ma non nel QR
         'avg0': f"{avg_scl0:.2f}",
         'avg1': f"{avg_scl1:.2f}",
-        'avg0': f"{avg_scl0:.2f}",
-        'avg1': f"{avg_scl1:.2f}",
         'bad': id_colp
     }
+
 
     # Params per QR (senza scl0/scl1 per ridurre dimensione QR)
     qr_params = {k: v for k, v in params.items() if k not in ['scl0', 'scl1']}
