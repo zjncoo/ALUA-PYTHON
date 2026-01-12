@@ -594,42 +594,53 @@ def processa_e_genera_assets(data_list, result_pacchetto, output_dir=None):
     if use_fallback:
         log.warning(f"[ASSET] Modalità FALLBACK attiva. Scenario: {fallback_scenario}")
         
-        # 1. GENERAZIONE DATI SINTETICI
-        # Usiamo la stessa funzione che ha generato i grafici di fallback per avere dati numerici coerenti
-        fake_data_points = generate_synthetic_data(fallback_scenario, duration_sec=40, sample_rate=10) # 40s come Phase 2
+        # 1. CARICAMENTO DATI STATICI (JSON) DA ASSETS/FALLBACK
+        # Cerchiamo prima se esiste un dataset preregistrato per questo scenario
+        # Questo garantisce che i dati del QR e dei grafici siano allineati ai file png definitivi
+        fallback_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../assets/fallback"))
+        json_filename = f"fallback_data_{fallback_scenario}.json"
+        json_path = os.path.join(fallback_dir, json_filename)
         
-        # Convertiamo in formato compatibile con source_list (list of dicts)
-        # generate_synthetic_data ritorna [(scl1, scl0), ...] -> NOTA L'ORDINE INVERTITO NELLA FUNZIONE ORIGINALE!
-        # Controlliamo la funzione originale in generate_fallback_assets:
-        # "for i in range(num_samples): data.append((scl1_jittered[i], scl0[i]))"
-        # Quindi index 0 è SCL1, index 1 è SCL0.
-        
+        loaded_static_data = False
         fake_source_list = []
-        for d in fake_data_points:
-            fake_source_list.append({
-                "SCL0": d[1], # Recupro corretto
-                "SCL1": d[0],
-                "TIMESTAMP": 0 # Dummy
-            })
+        
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r') as f:
+                    fake_source_list = json.load(f)
+                log.info(f"  -> [DATA] Caricati dati statici da: {json_path}")
+                loaded_static_data = True
+            except Exception as e:
+                log.error(f"  -> [DATA] Errore caricamento JSON statico: {e}")
+        
+        if not loaded_static_data:
+            # FALLBACK DEL FALLBACK: Generazione sintetica on-the-fly
+            # Se manca il file JSON, generiamo dati coerenti al volo
+            log.warning("  -> [DATA] JSON statico non trovato, generazione sintetica...")
+            fake_data_points = generate_synthetic_data(fallback_scenario, duration_sec=40, sample_rate=10)
             
+            for d in fake_data_points:
+                fake_source_list.append({
+                    "SCL0": d[1], # Recupro corretto (vedi commento sotto)
+                    "SCL1": d[0],
+                    "TIMESTAMP": 0
+                })
+        
         # SOVRASCRIVIAMO LA LISTA SORGENTE PER I CALCOLI SUCCESSIVI (QR, Medie)
         source_list = fake_source_list
-        # Ricalcoliamo storico_tuple per coerenza (usato per lissajous/graph se non usassimo i png statici)
-        storico_tuple = fake_data_points 
         
-        # [NEW] SALVATAGGIO DATI FINTI SU FILE (Richiesta Utente)
-        # Salviamo i dati che hanno generato le medie del QR in un file fisico
-        try:
-            fallback_jsonl_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../data/last_processed_fallback.jsonl")
-            with open(fallback_jsonl_path, 'w') as f_jsonl:
-                for item in source_list:
-                    f_jsonl.write(json.dumps(item) + "\n")
-            log.info(f"  -> [DATA] Salvato JSONL fallback: {fallback_jsonl_path}")
-        except Exception as e:
-            log.error(f"  -> [DATA] Errore salvataggio JSONL fallback: {e}")
-
-        # 2. CARICAMENTO ASSET STATICI
-        fallback_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../assets/fallback")
+        # Ricalcoliamo storico_tuple per coerenza (usato per lissajous/graph se non usassimo i png statici)
+        # source_list è una lista di dict {"SCL0":..., "SCL1":...}
+        storico_tuple = []
+        for d in source_list:
+            storico_tuple.append((d.get("SCL1", 0), d.get("SCL0", 0))) 
+            # NOTA: conductance_graph e synthetic data usano ordine (SCL1, SCL0) spesso, 
+            # controlliamo coerenza. Nel dubbio, manteniamo coerenza col vecchio codice:
+            # vecchio codice data.append((scl1, scl0)). 
+            # Qui stiamo ricreando quella tupla.
+        
+        # 2. CARICAMENTO ASSET STATICI IMMAGINI
+        fallback_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../assets/fallback"))
         
         # A. Lissajous Fallback
         fallback_liss = os.path.join(fallback_dir, f"fallback_lissajous_{fallback_scenario}.png")
