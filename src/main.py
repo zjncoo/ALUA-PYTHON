@@ -12,6 +12,7 @@ import printer  # Per stampare il contratto
 AUDIO_FILES = {
     "01": "../assets/audio/01.wav",
     "02": "../assets/audio/02.wav",
+    "02.5": "../assets/audio/02.5.wav",
     "03": "../assets/audio/03.wav",
     "04": "../assets/audio/04.wav",
     "04.1": "../assets/audio/04.1.wav",
@@ -200,6 +201,10 @@ def main():
     
     # Audio 02
     play_audio(AUDIO_FILES["02"], "02")
+    
+    # Audio 02.5
+    play_audio(AUDIO_FILES["02.5"], "02.5")
+
     
     # ========================================
     # PRIMA FASE DI MONITORAGGIO
