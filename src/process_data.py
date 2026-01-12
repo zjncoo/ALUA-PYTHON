@@ -99,25 +99,7 @@ def calcola_score_slider(sample):
     raw0 = sample.get("SLIDER0", 0)
     raw1 = sample.get("SLIDER1", 0)
 
-    # [FALLBACK SLIDER] Rilevamento Guasto Hardware
-    # Se il valore è esattamente 0 o 1023, è molto probabile che il cavo sia scollegato o in corto.
-    # In questo caso, per non penalizzare la coppia con un errore tecnico,
-    # ignoriamo il sensore rotto e "ci fidiamo" dell'altro (copiando il valore).
-    is_broken0 = (raw0 == 0 or raw0 == 1023)
-    is_broken1 = (raw1 == 0 or raw1 == 1023)
-    
-    if is_broken0 or is_broken1:
-        log.warning(f"[SLIDER FALLBACK] Rilevato sensore rotto/estremo: S0={raw0}, S1={raw1}")
-        
-        if is_broken0 and is_broken1:
-            # Entrambi rotti -> Fiducia totale al software (100% compatibilità d'ufficio)
-            return 1.0
-        elif is_broken0:
-            # P0 rotto -> Usiamo P1 come riferimento
-            raw0 = raw1
-        elif is_broken1:
-            # P1 rotto -> Usiamo P0 come riferimento
-            raw1 = raw0
+
             
     v0 = raw0 * SLIDER_SCALE
     v1 = raw1 * SLIDER_SCALE
@@ -409,6 +391,8 @@ def processa_dati(data_list):
             static_sample["RELAZIONI_P1"] = ["CIRCOSTANZIALE"]
             log.warning("[FALLBACK BUTTONS] Entrambi Vuoti -> Forcing 'CIRCOSTANZIALE'")
 
+
+
         # Tutti i campioni da split_index in poi sono la Fase 2,
         # su cui analizzeremo il trend di SCL (arousal).
         phase2_list = data_list[split_index:]
@@ -420,6 +404,7 @@ def processa_dati(data_list):
 
     # 5) CALCOLO DELL'AROUSAL (solo su Fase 2)
     
+
     # [NEW] SENSOR HEALTH CHECK & RANDOMIZED FALLBACK
     # Verifica se i sensori sono "morti" (>20% di dati sotto soglia 10.0)
     SENSOR_THRESHOLD = 10.0
